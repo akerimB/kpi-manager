@@ -1,0 +1,42 @@
+KPI,SH_code,Description
+1,SH1.1,"1. Hedef Bölge İmalat Sanayi Ort. Dönüşüm Farkındalık Artış Oranı: Yalın, dijital, yeşil ve dirençlilik konularında yapılan anketlerle ölçülen algı değişimi."
+2,SH1.1,"2. Ortak farkındalık etkinliği düzenlenen kilit kurum sayısı: OSB, sanayi odası gibi stratejik paydaşlarla yapılan etkinlik sayısı."
+3,SH1.2,3. Model Fabrika programlarına katılanların ilgili alanlarda istihdam olma oranı: Mezunların başarısını ölçer.
+4,SH1.2,4. Verilen toplam eğitim (kişi*saat) miktarı: Eğitim faaliyetlerinin toplam hacmini gösterir.
+5,SH1.3,5. Yönlendirme sonucu destek programlarından yararlanan KOBİ sayısı: Yapılan yönlendirmenin somut bir projeye ve finansal kaynağa dönüştüğünü gösterir.
+6,SH1.4,"6. İleri teknoloji, yeşil ve/veya dirençli üretim projelerinin tamamlanma sonrası KOBİ bünyesinde sürdürülebilirlik oranı: Projenin kalıcı bir etki yaratıp yaratmadığını ölçer."
+7,SH1.4,7. İleri teknolojiler ve yeşil üretim uygulamaları ile sağlanan ortalama karbon emisyonu azalış oranı: Yeşil dönüşümün en somut ve ölçülebilir çıktısıdır.
+8,SH1.5,"8. Yalın, dijital, yeşil dönüşüm veya dirençlilik alanında belirli bir olgunluk seviyesine ulaşan KOBİ sayısı: MF müdahalesinin KOBİ'yi ne kadar ileri taşıdığını gösterir."
+9,SH1.6,9. Birden fazla temel dönüşüm alanında (bütüncül) hizmet alan KOBİ oranı: KOBİ'lerle kurulan ilişkinin derinliğini ve bütüncül dönüşüm vizyonuna uyumu gösterir.
+10,SH1.6,10. Yalın dönüşüm odaklı Öğren-Dönüş Programını tamamlayan KOBİ sayısı: Model Fabrikaların amiral gemisi hizmetinin doğrudan performansını ölçer.
+11,SH2.1,11. Kârlılık oranı: Tüm gelir ve gider kalemlerinin net sonucunu gösteren en temel finansal sağlık göstergesidir.
+12,SH2.1,12. Ortalama yıllık gelir artış oranı: Fabrikanın pazardaki büyüme ve kabul görme hızını gösterir.
+13,SH2.2,13. Yıllık gelir ve gider bütçesine genel uyum oranı (%): Planlama ve finansal disiplin yeteneğini bir bütün olarak ölçer.
+14,SH2.3,14. Yeni KOBİ müşteri kazanım sayısı: Fabrikanın pazarlama ve satış faaliyetlerinin ne kadar başarılı olduğunu gösterir.
+15,SH2.3,15. KOBİ başına ortalama faturalandırılan hizmet geliri: Müşterilerden yaratılan ortalama değeri ve hizmetlerin derinliğini gösterir.
+16,SH2.4,16. MF operasyonel maliyetlerinin öz gelirle karşılanma oranı: Mali dayanıklılığın ve kamu kaynaklarına bağımlılığın azalmasının en net göstergesidir.
+17,SH2.4,17. Yıllık başlatılan yeni gelir getirici hizmet sayısı: Fabrikanın pazar ihtiyaçlarına ne kadar dinamik yanıt verdiğini ve inovasyon yaptığını gösterir.
+18,SH2.5,18. Dış finansman ile sağlanan kaynağın toplam miktarı: Proje geliştirme ve fon bulma kapasitesinin nihai sonucudur.
+19,SH4.8,19. Personel elde tutma oranı (yıllık) 35. Çalışan Memnuniyet Oranı / Çalışan Bağlılığı Endeksi
+20,SH3.1,20. Çalışan başına yıllık ortalama eğitim süresi (saat): Kurumun insan kaynağına yatırım yapma taahhüdünü gösterir.
+21,SH3.2,21. Performans değerlendirme sürecine dahil edilen personel oranı: Kurumsallaşmış ve adil bir İK sisteminin varlığını gösterir.
+22,SH3.3,22. Genel Ekipman Etkinliği (OEE) veya benzeri bir etkinlik göstergesi: Fiziksel altyapının ne kadar verimli ve hazır olduğunu ölçen standart bir endüstri metriğidir.
+23,SH3.4,"23. İç ve dış denetimlerden (mali, idari, yasal) alınan uygunsuzluk/ikaz sayısı: Kurumsal yönetişim kalitesini ve risk yönetimini doğrudan ölçer."
+24,SH3.5,24. Stratejik amaç ve hedeflere genel ulaşma oranı (%): Kurumun planlama ve uygulama kapasitesinin en üst düzeydeki özetidir.
+25,SH3.6,"25. Ulusal/uluslararası kabul görmüş kalite ve mükemmellik standartlarına yönelik alınan belge/akreditasyon sayısı (ISO, EFQM vb.): Sürekli iyileştirme çabasının dış bir otorite tarafından tescilidir."
+26,SH3.6,26. Çalışan başına düşen onaylanmış iyileştirme önerisi sayısı: Sürekli iyileştirme kültürünün tabana ne kadar yayıldığını gösterir.
+27,SH3.7,"27. Temel iş süreçlerini (CRM, ERP, LMS vb.) destekleyen bütünleşik dijital platformların kullanım oranı (%): Kurumun kendi operasyonlarını ne kadar dijitalleştirdiğini gösterir."
+28,SH3.8,"28. Diğer MF'ler tarafından benimsenen/uyarlanan en iyi uygulama (iyi pratik) sayısı: Bir MF'nin sadece kendi başarısını değil, tüm ağa olan katkısını ölçer."
+29,SH4.1,"29. Paydaş geri bildirimlerinin dikkate alınarak iyileştirme yapılan süreç/hizmet sayısı: Geri bildirimin sadece toplandığını değil, bir eyleme dönüştüğünü gösterir."
+30,SH4.2,30. Hedef kitledeki MF marka tanınırlık oranı (%): Marka faaliyetlerinin ne kadar başarılı olduğunun doğrudan ölçümüdür. Anketlerle belirlenir.
+31,SH4.2,"31. Yazılı, görsel ve dijital medyada MF'ler hakkında çıkan olumlu haber/içerik sayısı: Marka itibarının ve kamuoyu algısının bir göstergesidir."
+32,SH4.3,32. Hizmet verilen kurumlarda MF müdahaleleri sonucu elde edilen ortalama verimlilik artışı (%): Müşteri memnuniyetinin en somut ve nicel kanıtıdır.
+33,SH4.3,33. Hizmetleri tavsiye etme oranı (Net Promoter Score - NPS veya benzeri): Müşteri sadakatinin ve memnuniyetinin en standart ve güçlü ölçütüdür.
+34,SH4.3,34. Tekrar hizmet alan veya farklı bir hizmet için MF'ye başvuran KOBİ oranı: Müşteri bağlılığının ve hizmetin değerinin en net göstergesidir.
+35,SH4.4,35. Çalışan Memnuniyet Oranı / Çalışan Bağlılığı Endeksi: Kurumun iç sağlığının ve motivasyon düzeyinin en temel ölçütüdür.
+36,SH4.5,36. Sosyal sorumluluk projeleri/faaliyetleri kapsamında fayda sağlanan toplum bireylerinin sayısı: Yürütülen faaliyetlerin toplumsal etkisinin nicel ölçüsüdür.
+37,SH4.6,37. MF hizmetlerinden yararlanıp Verimlilik Proje Ödülleri'nde (veya benzeri platformlarda) ödül/derece alan işletme sayısı: MF'nin yarattığı etkinin en üst düzeyde tescilidir.
+38,SH4.7,"38. Üniversiteler ve araştırma kuruluşları ile yürütülen aktif ortak proje sayısı: İşbirliğinin sadece kağıt üzerinde kalmadığını, somut projelere dönüştüğünü gösterir."
+39,SH4.7,"39. Ortaklaşa geliştirilen/yayınlanan yeni ürün/hizmet, metodoloji veya bilimsel yayın sayısı: İşbirliğinin somut ve yenilikçi bir çıktıya dönüştüğünü gösterir."
+40,SH4.8,40. Aktif uluslararası kurum/Model Fabrika benzeri yapılarla stratejik ortaklık/işbirliği sayısı: Uluslararası ağa entegrasyon seviyesini gösterir.
+41,SH4.8,41. Uluslararası kabul görmüş göstergelere göre yapılan karşılaştırmalı (benchmark) analiz sayısı: Kurumun kendini uluslararası düzeyde ölçme ve geliştirme taahhüdünü gösterir.

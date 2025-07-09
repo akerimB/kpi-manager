@@ -1,0 +1,310 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// ============ KULLANICI YÖNETİMİ ============
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  name           String?
+  hashedPassword String?
+  role           UserRole  @default(MODEL_FACTORY)
+  factoryId      String?
+  factory        ModelFactory? @relation(fields: [factoryId], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // NextAuth.js ile uyumluluk
+  accounts       Account[]
+  sessions       Session[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+enum UserRole {
+  MODEL_FACTORY    // Model Fabrika kullanıcısı
+  UPPER_MANAGEMENT // Üst Yönetim kullanıcısı
+  ADMIN           // Sistem yöneticisi
+}
+
+// ============ MODEL FABRİKA YÖNETİMİ ============
+
+model ModelFactory {
+  id          String    @id @default(cuid())
+  code        String    @unique  // MF01, MF02 gibi
+  name        String
+  city        String?
+  region      String?
+  established DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // İlişkiler
+  users       User[]
+  kpiValues   KpiValue[]
+
+  @@map("model_factories")
+}
+
+// ============ STRATEJİK YAPILAR ============
+
+model StrategicGoal {
+  id               String            @id @default(cuid())
+  code             String            @unique  // SA1, SA2, SA3, SA4
+  title            String
+  description      String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  // İlişkiler
+  strategicTargets StrategicTarget[]
+
+  @@map("strategic_goals")
+}
+
+model StrategicTarget {
+  id               String        @id @default(cuid())
+  code             String        @unique  // SH1.1, SH1.2, vb.
+  title            String?
+  description      String?
+  strategicGoalId  String
+  strategicGoal    StrategicGoal @relation(fields: [strategicGoalId], references: [id])
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  // İlişkiler
+  kpis             Kpi[]
+  actions          Action[]
+
+  @@map("strategic_targets")
+}
+
+// ============ KPI YÖNETİMİ ============
+
+model Kpi {
+  id                String          @id @default(cuid())
+  number            Int             @unique  // 1, 2, 3, ... 41
+  description       String
+  unit              String?         // %, adet, saat, TL vb.
+  targetValue       Float?          // Hedef değer
+  themes            String          // Tema kodları virgülle ayrılmış (LEAN,DIGITAL,GREEN,RESILIENCE)
+  strategicTargetId String
+  strategicTarget   StrategicTarget @relation(fields: [strategicTargetId], references: [id])
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  // İlişkiler
+  kpiValues         KpiValue[]
+  actionKpis        ActionKpi[]
+
+  @@map("kpis")
+}
+
+model KpiValue {
+  id            String       @id @default(cuid())
+  value         Float
+  period        String       // "2024-Q1", "2024-Q2", vb.
+  year          Int
+  quarter       Int?
+  month         Int?
+  kpiId         String
+  kpi           Kpi          @relation(fields: [kpiId], references: [id])
+  factoryId     String
+  factory       ModelFactory @relation(fields: [factoryId], references: [id])
+  enteredBy     String?      // Kullanıcı ID'si
+  enteredAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([kpiId, factoryId, period])
+  @@map("kpi_values")
+}
+
+// ============ EYLEM YÖNETİMİ ============
+
+model Phase {
+  id          String   @id @default(cuid())
+  name        String   @unique  // "Faz 1", "Faz 2", "Sürekli"
+  startDate   DateTime?
+  endDate     DateTime?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // İlişkiler
+  actions     Action[]
+
+  @@map("phases")
+}
+
+model Action {
+  id                  String          @id @default(cuid())
+  code                String          @unique  // E1.1.1, E1.1.2, vb.
+  description         String
+  priority            ActionPriority  @default(MEDIUM)
+  completionPercent   Float           @default(0)  // 0-100 arası
+  phaseId             String?
+  phase               Phase?          @relation(fields: [phaseId], references: [id])
+  strategicTargetId   String
+  strategicTarget     StrategicTarget @relation(fields: [strategicTargetId], references: [id])
+  responsibleUnit     String?         // "PAZ ÇG", "KUR-GEL ÇG" vb.
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  // İlişkiler
+  actionSteps         ActionStep[]
+  actionKpis          ActionKpi[]
+
+  @@map("actions")
+}
+
+model ActionStep {
+  id          String           @id @default(cuid())
+  title       String
+  description String?
+  dueDate     DateTime?
+  status      ActionStepStatus @default(PENDING)
+  actionId    String
+  action      Action           @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@map("action_steps")
+}
+
+// Eylem-KPI ilişki tablosu (etki katsayıları için)
+model ActionKpi {
+  id              String  @id @default(cuid())
+  actionId        String
+  action          Action  @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  kpiId           String
+  kpi             Kpi     @relation(fields: [kpiId], references: [id], onDelete: Cascade)
+  impactScore     Float?  // Etki katsayısı (0-1 arası)
+  impactCategory  ImpactCategory? // DÜŞÜK, ORTA, YÜKSEK
+
+  @@unique([actionId, kpiId])
+  @@map("action_kpis")
+}
+
+// ============ ENUM TANIMLARI ============
+
+enum Theme {
+  LEAN        // Yalın
+  DIGITAL     // Dijital
+  GREEN       // Yeşil
+  RESILIENCE  // Dirençlilik
+}
+
+enum ActionPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ActionStepStatus {
+  PENDING     // Beklemede
+  IN_PROGRESS // Devam ediyor
+  COMPLETED   // Tamamlandı
+  CANCELLED   // İptal edildi
+  DELAYED     // Gecikmiş
+}
+
+enum ImpactCategory {
+  LOW    // Düşük
+  MEDIUM // Orta
+  HIGH   // Yüksek
+}
+
+// ============ SİMÜLASYON VE RAPORLAMA ============
+
+model Simulation {
+  id               String            @id @default(cuid())
+  name             String
+  description      String?
+  createdBy        String            // User ID
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  // İlişkiler
+  simulationItems  SimulationItem[]
+
+  @@map("simulations")
+}
+
+model SimulationItem {
+  id                    String     @id @default(cuid())
+  simulationId          String
+  simulation            Simulation @relation(fields: [simulationId], references: [id], onDelete: Cascade)
+  actionId              String
+  assumedCompletion     Float      // Varsayılan tamamlanma % (0-100)
+  estimatedImpact       Float?     // Tahmini etki
+  estimatedImpactCategory ImpactCategory?
+
+  @@unique([simulationId, actionId])
+  @@map("simulation_items")
+}
+
+// ============ SISTEM AYARLARI ============
+
+model Setting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+  type  String @default("string") // string, number, boolean, json
+
+  @@map("settings")
+}

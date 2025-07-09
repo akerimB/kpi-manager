@@ -1,0 +1,344 @@
+
+
+
+# ✅ PROJE ÖZETİ – **Model Fabrika Strateji Yönetimi Uygulaması**
+
+## 🎯 Amaç
+
+Üst Yönetici Kuruluş’un:
+
+* **Model Fabrikalar**dan gelen periyodik KPI verilerini toplayarak,
+* Stratejik hedeflere, eylemlere ve temalara göre gelişimi izleyebileceği,
+* **Zamana bağlı** performans takibini yapabileceği,
+* Yönetici dostu, görsel olarak güçlü bir **web tabanlı karar destek platformu** oluşturmak.
+
+---
+
+## 👥 Kullanıcı Rolleri
+
+| Rol              | Yetkileri                                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------------------------- |
+| 🏭 Model Fabrika | Kendi KPI verilerini dönemsel girer, geçmişini görür                                                     |
+| 🏛️ Üst Yönetim  | Tüm fabrikaların KPI’larını izler, stratejik hedeflere katkıyı analiz eder, eylemleri ve fazları yönetir |
+
+---
+
+## 🧱 Sabit Veri Yapısı
+
+* **SA** (Stratejik Amaç) → 4 adet
+* **SH** (Stratejik Hedef) → 19 adet
+* **KPI** → 41 adet
+* **Tema** → 4 (Yalın, Dijital, Yeşil, Dirençlilik)
+* **Eylem** → 160+ eylem, fazlara bağlı
+* **Faz** → Zaman dilimleri (ör. Faz 1: 2025–2026)
+
+---
+
+## 🏗️ Modüller
+
+### 1. KPI Giriş Paneli (Model Fabrikalar)
+
+* Sabit tanımlı KPI listesi
+* Dönem seçimi (çeyrek/yıl)
+* Önceki dönem karşılaştırmalı görselleştirme
+* Tema bazlı filtreleme
+
+### 2. Strateji İzleme Paneli (Yönetici)
+
+* KPI → SH → SA hiyerarşik katkı tablosu
+* Başarım yüzdeleri, trafik ışığı renkleri
+* Tema bazlı başarı analizi (radar)
+
+### 3. Eylem Yönetimi
+
+* Her eylem:
+
+  * SH ve KPI bağlantısı
+  * Tamamlanma yüzdesi (%)
+  * Aşamaları / milestone takibi
+* Faz bazlı gruplama
+* Tema katkı rozetleri
+
+### 4. Faz Takvimi (Yönetici Panelinde)
+
+* Gantt-style faz görünümü
+* Faz bazlı KPI gelişimi analizi
+
+### 5. Tema Takibi
+
+* Tema → KPI → SH katkı grafikleri
+* Tema bazlı başarı radarları
+* En çok katkı sağlayan fabrikalar
+
+### 6. ✨ Etki Simülasyonu (Programatik değil)
+
+* Eylem seç → % tamamlanma belirle
+* KPI ve SH üzerindeki etkisi görsel olarak tahmin edilir
+* “Tahmini katkı: Düşük / Orta / Yüksek”
+* Renkli gösterim ve radar grafiği
+
+---
+
+## 🛠️ Teknoloji Kararları (GÜNCELLENMİŞ)
+
+| Katman     | Seçilen Teknoloji                    |
+| ---------- | ------------------------------------ |
+| Frontend   | **React + TailwindCSS + TypeScript** |
+| Backend    | **Next.js API Routes (Node.js)**     |
+| Veritabanı | **PostgreSQL + Prisma ORM**          |
+| Grafikler  | Recharts / ECharts                   |
+| Auth       | NextAuth.js veya Supabase Auth       |
+| Deployment | Vercel / Railway / Supabase          |
+
+---
+
+## 🧱 Veritabanı Yapısı (Prisma Model)
+
+| Tablo             | Açıklama                                     |
+| ----------------- | -------------------------------------------- |
+| `modelFactory`    | Fabrikalar                                   |
+| `phase`           | Faz bilgisi                                  |
+| `strategicGoal`   | SA                                           |
+| `strategicTarget` | SH (SA’ya bağlı)                             |
+| `kpi`             | KPI (SH’ye bağlı, temalı)                    |
+| `kpiValue`        | KPI girişleri (zaman, fabrika)               |
+| `action`          | Eylemler (SH’ye ve faza bağlı, tamamlanma %) |
+| `actionStep`      | Eylem içi adımlar (başlık, tarih, durum)     |
+
+---
+
+
+## 🔐 Güçlü Yönler
+
+* Sabit KPI ve hedef yapısıyla kolay analiz
+* Görsel, kullanıcı dostu raporlama
+* Zaman ve tema bazlı strateji takibi
+* Python’suz, JS/TS-native stack
+* Genişletilebilir, modüler mimari
+
+---
+
+
+📊 ANALİTİK ÖZELLİKLER
+* Zaman serili KPI grafik izleme
+* Faz bazlı başarı analizleri
+* Eylem tamamlama etkisi analizleri (ör. %50 tamamlandı → %30 etki)
+* Tema bazlı başarı radarları
+* Eylem → KPI → SH → SA akış şemaları
+
+
+
+İşte uygulaman için çok **daha detaylı ve genişletilmiş kullanıcı hikayeleri seti**, çoklu **Model Fabrika** yapısı ve tüm modülleri kapsayacak şekilde:
+
+---
+
+# 📘 KULLANICI HİKAYELERİ – TAM LİSTE (v1.0)
+
+## 👤 MODEL FABRİKA KULLANICISI
+
+### 🔢 KPI GİRİŞİ & GÖRÜNTÜLEME
+
+**MF-US01 – KPI Girişi (Dönemsel)**
+
+> *Bir model fabrika kullanıcısı olarak, her çeyrek için belirlenen sabit KPI’lara ait değerleri sisteme girebilmek istiyorum ki stratejik hedeflere katkım izlenebilsin.*
+
+**MF-US02 – Önceki Dönem Karşılaştırması**
+
+> *Güncel KPI verisi girerken önceki dönemlere ait KPI gelişim grafiğini görmek istiyorum ki iyileşmeyi takip edebileyim.*
+
+**MF-US03 – Giriş Bildirimi / Hatırlatma**
+
+> *Yeni bir KPI giriş dönemi başladığında sistemin beni e-posta veya panel bildirimiyle uyarmasını istiyorum ki girişleri zamanında yapabileyim.*
+
+**MF-US04 – Eksik Veri Uyarısı**
+
+> *Bir KPI verisini eksik bıraktığımda sistemin beni uyarmasını istiyorum ki eksik giriş yapmayayım.*
+
+**MF-US05 – Tema Filtreleme**
+
+> *KPI’ları 4 tema (Yalın, Dijital, Yeşil, Dirençlilik) özelinde filtreleyebilmek istiyorum ki ilgili konulardaki performansımı görebileyim.*
+
+---
+
+### 📈 PERFORMANS TAKİBİ
+
+**MF-US06 – KPI Gelişim Grafikleri**
+
+> *Fabrikamın tüm KPI’larına ait zaman serisi grafiklerini görmek istiyorum ki genel performans eğilimimi analiz edebileyim.*
+
+**MF-US07 – Hedefe Uzaklık Göstergesi**
+
+> *Her KPI için hedef değerle karşılaştırmalı olarak mevcut durumumu (ör. %75 ulaşım) görebilmek istiyorum.*
+
+**MF-US08 – Tema Bazlı Radar Grafiği**
+
+> *Fabrikamın temalar bazında ortalama KPI başarımını radar grafiğiyle görmek istiyorum ki hangi alanda güçlüyüm görebileyim.*
+
+---
+
+## 🏛️ ÜST YÖNETİCİ KURULUŞ KULLANICISI
+
+### 📊 GENEL STRATEJİK İZLEME
+
+**ADMIN-US01 – KPI → SH → SA Başarım Haritası**
+
+> *Tüm KPI’lardan başlayarak SH ve SA başarı seviyelerini katmanlı olarak görebilmek istiyorum ki stratejik düzeyde ilerlemeyi takip edebileyim.*
+
+**ADMIN-US02 – Stratejik Hedef Başarım Göstergesi**
+
+> *Her SH için, KPI’ların ortalamasına dayalı hedef başarım yüzdesini görmek istiyorum.*
+
+**ADMIN-US03 – SA Başarım Raporu Oluşturma**
+
+> *Her SA için sistemin otomatik başarı raporu oluşturmasını istiyorum (periyotluk PDF/Excel).*
+
+---
+
+### 🏭 FABRİKA KARŞILAŞTIRMALI ANALİZLER
+
+**ADMIN-US04 – Fabrikalar Arası KPI Karşılaştırması**
+
+> *Aynı KPI için farklı fabrikaların son değerlerini yan yana görebilmek istiyorum ki kimin daha başarılı olduğunu görebileyim.*
+
+**ADMIN-US05 – Tema Bazlı Fabrika Sıralaması**
+
+> *Temalara göre KPI başarım ortalaması alarak fabrikaları sıralamak istiyorum.*
+
+**ADMIN-US06 – Fabrika Katılım Takibi**
+
+> *Hangi fabrikanın hangi dönemlerde veri girdiğini/girmediğini tablolu şekilde görebilmek istiyorum.*
+
+---
+
+### 🛠️ EYLEM YÖNETİMİ
+
+**ADMIN-US07 – Eylem Listesi Yönetimi**
+
+> *Tüm eylemleri görebilmek, filtrelemek (faz, SH, tema), ve güncelleyebilmek istiyorum.*
+
+**ADMIN-US08 – Eylem Tamamlanma Durumu Takibi**
+
+> *Her eylemin tamamlanma yüzdesini ve adımlarının durumunu görebilmek istiyorum.*
+
+**ADMIN-US09 – Geciken Adım Uyarısı**
+
+> *Planlanan deadline’ı geçmiş adımlar için sistemin bana uyarı üretmesini istiyorum.*
+
+**ADMIN-US10 – Eylem → KPI Etkisi Haritası**
+
+> *Her eylemin hangi KPI’lara hizmet ettiğini görmek istiyorum ki yapılan işin etkisini net göreyim.*
+
+---
+
+### 🧭 FAZ VE ZAMAN TAKVİMİ
+
+**ADMIN-US11 – Faz Takvimi Görselleştirme (Gantt)**
+
+> *Fazlara göre hangi eylemlerin yürütüldüğünü bir zaman çizelgesi (Gantt gibi) ile görebilmek istiyorum.*
+
+**ADMIN-US12 – Faz Başarı Raporu**
+
+> *Her faz sonunda hangi KPI’lar ne kadar gelişmiş görmek istiyorum ki faz etkililiğini analiz edebileyim.*
+
+---
+
+### 📤 RAPORLAMA VE ÇIKTI
+
+**ADMIN-US13 – KPI Raporları İndirilebilir**
+
+> *Seçilen tarih aralığına göre KPI verilerini Excel olarak dışa aktarabilmek istiyorum.*
+
+**ADMIN-US14 – Grafik Paylaşımı**
+
+> *Radar / bar / zaman serisi grafiklerini PDF ya da PNG olarak dışa aktarabilmek istiyorum.*
+
+---
+
+### 🔐 YETKİ VE GÜVENLİK
+
+**GEN-US01 – Rol Bazlı Erişim**
+
+> *Yetkime göre sadece yetkili olduğum veri ve ekranlara erişebilmek istiyorum.*
+
+**GEN-US02 – Şifre Sıfırlama / MFA Desteği**
+
+> *Güvenlik için çok faktörlü kimlik doğrulama (MFA) ve şifre sıfırlama sistemi istiyorum.*
+
+---
+
+
+* **US17 – Eylem etki simülasyonu (senaryo analizi)**
+Elbette! İşte **US17 – Eylem Etki Simülasyonu (Senaryo Analizi)** kullanıcı hikayesinin detaylı tanımı:
+
+---
+
+## 🎯 **Kullanıcı Hikayesi: US17**
+
+**Başlık:**
+🧠 Eylem Etki Simülasyonu – Stratejik hedeflere olası etkilerin önden analiz edilmesi
+
+**Tanım:**
+
+> *Bir üst yönetici olarak, planlanan veya önerilen eylemlerin ilgili KPI'lar ve stratejik hedefler üzerindeki tahmini etkisini önceden görmek istiyorum ki hangi eylemlerin daha etkili olduğunu kıyaslayarak kaynakları en doğru şekilde tahsis edebileyim.*
+
+---
+
+## ✅ **Kabul Kriterleri (Acceptance Criteria)**
+
+| No  | Kriter                                                                                                       |
+| --- | ------------------------------------------------------------------------------------------------------------ |
+| AC1 | Yönetici, sistemde yeni veya mevcut bir eylemi seçerek “Etki Simülasyonu” başlatabilir                       |
+| AC2 | Eylemin bağlı olduğu SH ve KPI’lar otomatik olarak görünür                                                   |
+| AC3 | Yönetici, eylemin tamamlanma düzeyini manuel olarak (ör. %50, %75, %100) ayarlayabilir                       |
+| AC4 | Sistem, eylemin hedef KPI’lar üzerindeki tahmini etki puanlarını ve eğilimleri grafikle sunar                |
+| AC5 | Etki skoru: sistem eylemin geçmiş benzerlerinden öğrenilen etkileri temel alabilir *(AI destekli opsiyonel)* |
+| AC6 | Simülasyon sonuçları tablolu ve grafiksel olarak gösterilir (KPI değişimi, hedef başarım yüzdesi)            |
+| AC7 | Kullanıcı bu senaryoyu kaydedebilir ve karşılaştırma için başka bir senaryo ile yan yana görebilir           |
+
+---
+
+## 📊 Örnek Simülasyon Arayüzü
+
+* Eylem seçimi: `E1.2.4 – Dijitalleşme eğitim programı`
+* Tahmini etki:
+
+  * `KPI12: Dijital Hazırlık Skoru +12%`
+  * `SH2.1 Başarım: %63 → %71`
+  * `SA2 Katkısı: +8 puan`
+* Simülasyon Modları:
+
+  * `Tamamlandı`, `Yürütülüyor (%50)`, `Planlandı (etki varsayım)`
+
+---
+
+## ⚙️ Geliştirme Notları
+
+* Simülasyon motoru, eylem → KPI ilişkilerini kullanarak önceki KPI değişimlerinden *ağırlıklı ortalama* çıkarabilir.
+* Yapay zekâ destekli modülde, benzer geçmiş eylemler referans alınarak otomatik tahmin yapılabilir.
+* Arayüzde kullanıcıya:
+
+  * Etki barları
+  * KPI başarı tahmini grafikleri
+  * Radar grafiği (tema katkısı)
+    sunulabilir.
+
+---
+
+## 🧩 Bağlantılı Veriler
+
+* `actions.phase_id` → Zaman bilgisi
+* `actions.kpi_impact_scores` *(isteğe bağlı yeni alan)* → \[KPI\_id: etki katsayısı]
+* `kpi_values` → Tarihsel karşılaştırma ve simülasyon sonrası tahmin
+
+---
+
+Bu kullanıcı hikayesi, özellikle **karar destek sisteminin zekâ düzeyini** artırır ve yöneticilere **"hangi eylemi önceliklendirmeli?"** sorusuna veriyle cevap verir.
+
+İstersen bunun için örnek bir **mockup arayüz**, **geliştirme şeması** ya da **matematiksel etki modeli** de çıkarabilirim. Devam edelim mi?
+
+
+## 💡 BONUS: GELECEKTE EKLENEBİLECEK HİKAYELER
+
+* **US15 – Yapay zeka ile KPI tahmini önerisi**
+* **US16 – KPI anomalileri için otomatik uyarı sistemi**
+
