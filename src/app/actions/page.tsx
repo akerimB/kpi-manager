@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { ArrowLeft, Calendar, Filter, Search, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Clock, Target as TargetIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 
 interface Action {
   id: string
@@ -108,7 +109,7 @@ export default function ActionManagement() {
   }
 
   const filteredActions = actions.filter(action => {
-    const matchesPhase = !filters.phase || action.phase.id === filters.phase
+    const matchesPhase = !filters.phase || (action.phase && action.phase.id === filters.phase)
     const matchesPriority = !filters.priority || action.priority === filters.priority
     const matchesSearch = !filters.search || 
       action.title.toLowerCase().includes(filters.search.toLowerCase()) ||
@@ -117,6 +118,20 @@ export default function ActionManagement() {
     
     return matchesPhase && matchesPriority && matchesSearch
   })
+
+  // Group actions by strategic target
+  const groupedActions = filteredActions.reduce((acc, action) => {
+    const key = action.strategicTarget.code
+    if (!acc[key]) {
+      acc[key] = {
+        code: key,
+        title: action.strategicTarget.title,
+        actions: []
+      }
+    }
+    acc[key].actions.push(action)
+    return acc
+  }, {} as Record<string, { code: string; title: string; actions: typeof filteredActions }>)
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -287,82 +302,116 @@ export default function ActionManagement() {
           </CardContent>
         </Card>
 
-        {/* Eylem Listesi */}
+        {/* Grouped Actions List */}
         <Card>
           <CardHeader>
             <CardTitle>
               Eylemler ({filteredActions.length} / {actions.length})
             </CardTitle>
             <CardDescription>
-              Tüm eylemlerin detaylı takibi ve ilerleme güncelleme
+              Stratejik hedeflere göre gruplandırılmış eylemler ve ilerleme durumları
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {filteredActions.map((action) => (
-                <div key={action.id} className="border rounded-lg p-4 hover:bg-gray-50">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <span className="font-medium text-sm">{action.code}</span>
-                        <div className={`px-2 py-1 rounded-full text-xs ${getPriorityColor(action.priority)}`}>
-                          {action.priority === 'CRITICAL' ? 'Kritik' :
-                           action.priority === 'HIGH' ? 'Yüksek' :
-                           action.priority === 'MEDIUM' ? 'Orta' : 'Düşük'}
-                        </div>
-                        {action.isOverdue && (
-                          <div className="px-2 py-1 rounded-full text-xs bg-red-100 text-red-600">
-                            <AlertTriangle className="h-3 w-3 inline mr-1" />
-                            Gecikmiş
+            <Accordion type="single" collapsible className="space-y-4">
+              {Object.values(groupedActions).map((group) => (
+                <AccordionItem key={group.code} value={group.code} className="border rounded-lg">
+                  <AccordionTrigger className="px-4 hover:no-underline">
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center space-x-4">
+                        <span className="font-medium">{group.code}</span>
+                        <span className="text-gray-600">{group.title}</span>
+                      </div>
+                      <div className="flex items-center space-x-4">
+                        <span className="text-sm text-gray-500">
+                          {group.actions.length} Eylem
+                        </span>
+                        <span className="text-sm text-gray-500">
+                          {Math.round(
+                            group.actions.reduce((sum, action) => sum + action.completionPercent, 0) /
+                              group.actions.length
+                          )}% Tamamlanma
+                        </span>
+                      </div>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-4">
+                    <div className="space-y-4">
+                      {group.actions.map((action) => (
+                        <div key={action.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-3 mb-2">
+                                <span className="font-medium text-sm">{action.code}</span>
+                                <div className={`px-2 py-1 rounded-full text-xs ${getPriorityColor(action.priority)}`}>
+                                  {action.priority === 'CRITICAL' ? 'Kritik' :
+                                   action.priority === 'HIGH' ? 'Yüksek' :
+                                   action.priority === 'MEDIUM' ? 'Orta' : 'Düşük'}
+                                </div>
+                                {action.isOverdue && (
+                                  <div className="px-2 py-1 rounded-full text-xs bg-red-100 text-red-600">
+                                    <AlertTriangle className="h-3 w-3 inline mr-1" />
+                                    Gecikmiş
+                                  </div>
+                                )}
+                              </div>
+                              <h3 className="font-medium text-gray-900 mb-1">{action.title}</h3>
+                              <p className="text-sm text-gray-600 mb-2">{action.description}</p>
+                              <div className="flex items-center space-x-4 text-xs text-gray-500">
+                                <span>Faz: {action.phase?.name || 'Atanmamış'}</span>
+                                <span>Adım: {action.completedSteps}/{action.totalSteps}</span>
+                              </div>
+                            </div>
+                            <div className="ml-6 min-w-[200px]">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium">İlerleme</span>
+                                <span className="text-sm">{action.completionPercent}%</span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+                                <div 
+                                  className={`h-2 rounded-full ${
+                                    action.completionPercent >= 100 ? 'bg-green-500' :
+                                    action.completionPercent >= 75 ? 'bg-blue-500' :
+                                    action.completionPercent >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                                  }`}
+                                  style={{ width: `${action.completionPercent}%` }}
+                                ></div>
+                              </div>
+                              <div className="flex space-x-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => updateActionProgress(action.id, Math.max(0, action.completionPercent - 10))}
+                                  disabled={action.completionPercent <= 0}
+                                >
+                                  -10%
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => updateActionProgress(action.id, Math.min(100, action.completionPercent + 10))}
+                                  disabled={action.completionPercent >= 100}
+                                >
+                                  +10%
+                                </Button>
+                              </div>
+                            </div>
                           </div>
-                        )}
-                      </div>
-                      <h3 className="font-medium text-gray-900 mb-1">{action.title}</h3>
-                      <p className="text-sm text-gray-600 mb-2">{action.description}</p>
-                      <div className="flex items-center space-x-4 text-xs text-gray-500">
-                        <span>Faz: {action.phase.name}</span>
-                        <span>SH: {action.strategicTarget.code}</span>
-                        <span>Adım: {action.completedSteps}/{action.totalSteps}</span>
-                      </div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="ml-6 min-w-[200px]">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">İlerleme</span>
-                        <span className="text-sm">{action.completionPercent}%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
-                        <div 
-                          className={`h-2 rounded-full ${
-                            action.completionPercent >= 100 ? 'bg-green-500' :
-                            action.completionPercent >= 75 ? 'bg-blue-500' :
-                            action.completionPercent >= 50 ? 'bg-yellow-500' : 'bg-red-500'
-                          }`}
-                          style={{ width: `${action.completionPercent}%` }}
-                        ></div>
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => updateActionProgress(action.id, Math.max(0, action.completionPercent - 10))}
-                          disabled={action.completionPercent <= 0}
-                        >
-                          -10%
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => updateActionProgress(action.id, Math.min(100, action.completionPercent + 10))}
-                          disabled={action.completionPercent >= 100}
-                        >
-                          +10%
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                  </AccordionContent>
+                </AccordionItem>
               ))}
-            </div>
+            </Accordion>
+
+            {filteredActions.length === 0 && (
+              <div className="text-center py-12">
+                <TargetIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Eylem Bulunamadı</h3>
+                <p className="text-gray-600">Seçilen filtrelere uygun eylem bulunmamaktadır.</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

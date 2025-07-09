@@ -58,6 +58,46 @@
   }
 }
 
+@layer utilities {
+  .sidebar-nav {
+    @apply flex flex-col space-y-1;
+  }
+
+  .sidebar-nav-item {
+    @apply flex items-center space-x-3 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200;
+  }
+
+  .sidebar-nav-item.active {
+    @apply bg-blue-50 text-blue-600;
+  }
+}
+
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+
+.animate-accordion-down {
+  animation: accordion-down 0.2s ease-out;
+}
+
+.animate-accordion-up {
+  animation: accordion-up 0.2s ease-out;
+}
+
 /* KPI Manager özel stiller */
 @layer components {
   .kpi-card {
