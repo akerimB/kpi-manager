@@ -18,16 +18,6 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // KPI değerleri için filtre oluştur
-    const kpiValueFilter: any = {
-      period: period
-    }
-
-    // Fabrika filtresi ekle
-    if (factoryId) {
-      kpiValueFilter.factoryId = factoryId
-    }
-
     const strategicTargets = await prisma.strategicTarget.findMany({
       where: whereCondition,
       include: {
@@ -35,11 +25,22 @@ export async function GET(request: NextRequest) {
         kpis: {
           include: {
             kpiValues: {
-              where: kpiValueFilter,
+              where: {
+                period: period
+                // Fabrika filtresi kaldırıldı - tüm fabrikalar dahil
+              },
+              include: {
+                factory: {
+                  select: {
+                    id: true,
+                    code: true,
+                    name: true
+                  }
+                }
+              },
               orderBy: {
                 period: 'desc'
-              },
-              take: 2 // Son 2 dönem için trend
+              }
             }
           }
         },
@@ -56,33 +57,74 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Her SH için başarım hesapla
-    const targetDetails = strategicTargets.map(sh => {
-      let totalKpis = sh.kpis.length
-      let kpisWithValues = 0
-      let totalScore = 0
-      let trend = 0
+    // Önceki dönem verilerini de al (trend için)
+    const previousPeriod = period === '2024-Q4' ? '2024-Q3' : 
+                          period === '2024-Q3' ? '2024-Q2' : 
+                          period === '2024-Q2' ? '2024-Q1' : '2023-Q4'
 
-      // KPI başarım hesaplama
-      sh.kpis.forEach(kpi => {
-        if (kpi.kpiValues.length > 0) {
-          kpisWithValues++
-          const currentValue = kpi.kpiValues[0].value
-          const targetValue = kpi.targetValue || 100
-          const score = Math.min(100, (currentValue / targetValue) * 100)
-          totalScore += score
-
-          // Trend hesaplama
-          if (kpi.kpiValues.length > 1) {
-            const previousValue = kpi.kpiValues[1].value
-            const previousScore = Math.min(100, (previousValue / targetValue) * 100)
-            trend += score - previousScore
+    const previousKpiValues = await prisma.kpiValue.findMany({
+      where: {
+        period: previousPeriod
+      },
+      include: {
+        factory: {
+          select: {
+            id: true,
+            code: true,
+            name: true
           }
         }
+      }
+    })
+
+    // Her SH için başarım hesapla (tüm fabrikalar bazında)
+    const targetDetails = strategicTargets.map(sh => {
+      let totalKpis = sh.kpis.length
+      let totalScore = 0
+      let totalPreviousScore = 0
+      let totalFactoryKpiCombinations = 0
+
+      // KPI başarım hesaplama - tüm fabrikalar
+      sh.kpis.forEach(kpi => {
+        // Mevcut dönem - tüm fabrika değerleri
+        kpi.kpiValues.forEach(kpiValue => {
+          totalFactoryKpiCombinations++
+          const targetValue = kpi.targetValue || 100
+          const score = Math.min(100, (kpiValue.value / targetValue) * 100)
+          totalScore += score
+        })
+
+        // Önceki dönem - trend hesabı için
+        const previousValues = previousKpiValues.filter(pv => pv.kpiId === kpi.id)
+        previousValues.forEach(prevValue => {
+          const targetValue = kpi.targetValue || 100
+          const prevScore = Math.min(100, (prevValue.value / targetValue) * 100)
+          totalPreviousScore += prevScore
+        })
       })
 
-      const averageScore = kpisWithValues > 0 ? totalScore / kpisWithValues : 0
-      const averageTrend = kpisWithValues > 0 ? trend / kpisWithValues : 0
+      const averageScore = totalFactoryKpiCombinations > 0 ? totalScore / totalFactoryKpiCombinations : 0
+      const previousAverageScore = totalFactoryKpiCombinations > 0 ? totalPreviousScore / totalFactoryKpiCombinations : 0
+      const trend = averageScore - previousAverageScore
+
+      // Eğer belirli bir fabrika seçiliyse, o fabrika için ayrı hesaplama
+      let factorySpecificScore = null
+      if (factoryId) {
+        let factoryScore = 0
+        let factoryKpiCount = 0
+        
+        sh.kpis.forEach(kpi => {
+          const factoryKpiValue = kpi.kpiValues.find(kv => kv.factory.id === factoryId)
+          if (factoryKpiValue) {
+            factoryKpiCount++
+            const targetValue = kpi.targetValue || 100
+            const score = Math.min(100, (factoryKpiValue.value / targetValue) * 100)
+            factoryScore += score
+          }
+        })
+        
+        factorySpecificScore = factoryKpiCount > 0 ? Math.round(factoryScore / factoryKpiCount) : 0
+      }
 
       return {
         id: sh.id,
@@ -90,9 +132,15 @@ export async function GET(request: NextRequest) {
         name: sh.title || `Stratejik Hedef ${sh.code}`,
         description: sh.description || '',
         strategicGoalId: sh.strategicGoal.id,
-        successRate: Math.round(averageScore),
+        successRate: Math.round(averageScore), // Tüm fabrikalar ortalaması
+        factorySpecificScore, // Seçili fabrika skoru (varsa)
         kpiCount: totalKpis,
-        trend: Math.round(averageTrend),
+        trend: Math.round(trend),
+        totalFactories: new Set(
+          sh.kpis.flatMap(kpi => 
+            kpi.kpiValues.map(kv => kv.factory.id)
+          )
+        ).size,
         status: averageScore >= 80 ? 'excellent' : 
                 averageScore >= 60 ? 'good' : 
                 averageScore >= 40 ? 'at-risk' : 'critical'

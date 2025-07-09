@@ -25,6 +25,17 @@ type ActionWithRelations = {
     status: string
     dueDate: Date | null
   }[]
+  actionKpis: {
+    id: string
+    impactScore: number | null
+    impactCategory: string | null
+    kpi: {
+      id: string
+      number: number
+      description: string
+      unit: string | null
+    }
+  }[]
 }
 
 export async function GET(request: NextRequest) {
@@ -71,6 +82,18 @@ export async function GET(request: NextRequest) {
           orderBy: {
             createdAt: 'asc'
           }
+        },
+        actionKpis: {
+          include: {
+            kpi: {
+              select: {
+                id: true,
+                number: true,
+                description: true,
+                unit: true
+              }
+            }
+          }
         }
       },
       orderBy: [
@@ -80,7 +103,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Frontend'in beklediği formata dönüştür
-    const enrichedActions = actions.map((action: ActionWithRelations) => {
+    const enrichedActions = actions.map((action: any) => {
       const totalSteps = action.actionSteps.length
       const completedSteps = action.actionSteps.filter(step => step.status === 'COMPLETED').length
       const stepCompletion = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0
@@ -119,7 +142,17 @@ export async function GET(request: NextRequest) {
         completedSteps,
         isOverdue: action.actionSteps.some(step => 
           step.status !== 'COMPLETED' && step.dueDate && new Date(step.dueDate) < new Date()
-        )
+        ),
+        impactedKpis: action.actionKpis.map(ak => ({
+          id: ak.kpi.id,
+          number: ak.kpi.number,
+          description: ak.kpi.description,
+          unit: ak.kpi.unit,
+          impactScore: ak.impactScore,
+          impactCategory: ak.impactCategory === 'HIGH' ? 'YÜKSEK' :
+                         ak.impactCategory === 'MEDIUM' ? 'ORTA' :
+                         ak.impactCategory === 'LOW' ? 'DÜŞÜK' : 'BELİRSİZ'
+        }))
       }
     })
 
@@ -154,7 +187,7 @@ export async function PATCH(request: NextRequest) {
         phase: true,
         actionSteps: true
       }
-    }) as ActionWithRelations
+    }) as any
 
     // Güncellenmiş eylemi frontend formatına dönüştür
     const totalSteps = updatedAction.actionSteps.length

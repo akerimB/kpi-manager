@@ -415,6 +415,53 @@ async function seedSampleKpiValues() {
   }
 }
 
+async function seedActionKpiRelationships() {
+  console.log('🔗 Seeding Action-KPI Relationships...')
+  
+  const actions = await prisma.action.findMany({
+    include: {
+      strategicTarget: true
+    }
+  })
+  const kpis = await prisma.kpi.findMany()
+  
+  // Her eylem için rastgele KPI'larla ilişki kur
+  for (const action of actions) {
+    // Her eylem için 1-3 arası KPI ile ilişki kur
+    const relationshipCount = Math.floor(Math.random() * 3) + 1
+    const shuffledKpis = kpis.sort(() => 0.5 - Math.random())
+    const selectedKpis = shuffledKpis.slice(0, relationshipCount)
+    
+    for (const kpi of selectedKpis) {
+      // Rastgele etki skoru ve kategorisi
+      const impactScore = Math.random() * 0.8 + 0.2 // 0.2-1.0 arası
+      const impactCategory = impactScore > 0.7 ? 'HIGH' : 
+                            impactScore > 0.4 ? 'MEDIUM' : 'LOW'
+      
+      await prisma.actionKpi.upsert({
+        where: {
+          actionId_kpiId: {
+            actionId: action.id,
+            kpiId: kpi.id
+          }
+        },
+        update: {
+          impactScore,
+          impactCategory
+        },
+        create: {
+          actionId: action.id,
+          kpiId: kpi.id,
+          impactScore,
+          impactCategory
+        }
+      })
+    }
+  }
+  
+  console.log('✅ Action-KPI relationships seeded')
+}
+
 async function main() {
   console.log('🌱 Starting seed process...')
   
@@ -426,6 +473,7 @@ async function main() {
   await seedModelFactories()
   await seedUsers()
   await seedSampleKpiValues()
+  await seedActionKpiRelationships()
   
   console.log('✅ Seed process completed!')
 }

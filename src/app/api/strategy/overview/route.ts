@@ -8,16 +8,6 @@ export async function GET(request: Request) {
     const period = searchParams.get('period') || '2024-Q4'
     const userRole = searchParams.get('userRole') || 'UPPER_MANAGEMENT'
 
-    // KPI değerleri için filtre oluştur
-    const kpiValueFilter: any = {
-      period: period
-    }
-
-    // Fabrika filtresi ekle
-    if (factoryId) {
-      kpiValueFilter.factoryId = factoryId
-    }
-
     // Tüm stratejik amaçları getir
     const strategicGoals = await prisma.strategicGoal.findMany({
       include: {
@@ -26,11 +16,22 @@ export async function GET(request: Request) {
             kpis: {
               include: {
                 kpiValues: {
-                  where: kpiValueFilter,
+                  where: {
+                    period: period
+                    // Fabrika filtresi kaldırıldı - tüm fabrikalar dahil
+                  },
+                  include: {
+                    factory: {
+                      select: {
+                        id: true,
+                        code: true,
+                        name: true
+                      }
+                    }
+                  },
                   orderBy: {
                     period: 'desc'
-                  },
-                  take: 2 // Mevcut ve önceki dönem için
+                  }
                 }
               }
             }
@@ -42,46 +43,95 @@ export async function GET(request: Request) {
       }
     })
 
-    // Her SA için başarım hesapla
+    // Önceki dönem verilerini de al (trend için)
+    const previousPeriod = period === '2024-Q4' ? '2024-Q3' : 
+                          period === '2024-Q3' ? '2024-Q2' : 
+                          period === '2024-Q2' ? '2024-Q1' : '2023-Q4'
+
+    const previousKpiValues = await prisma.kpiValue.findMany({
+      where: {
+        period: previousPeriod
+      },
+      include: {
+        factory: {
+          select: {
+            id: true,
+            code: true,
+            name: true
+          }
+        }
+      }
+    })
+
+    // Her SA için başarım hesapla (tüm fabrikalar bazında)
     const strategicOverview = strategicGoals.map(sa => {
       let totalKpis = 0
-      let kpisWithValues = 0
       let totalScore = 0
-      let previousScore = 0 // Trend hesabı için önceki dönem skoru
+      let totalPreviousScore = 0
+      let totalFactoryKpiCombinations = 0
 
       sa.strategicTargets.forEach(sh => {
         sh.kpis.forEach(kpi => {
           totalKpis++
-          if (kpi.kpiValues.length > 0) {
-            kpisWithValues++
-            // Basit başarım skoru hesaplama (0-100)
-            const value = kpi.kpiValues[0].value
+          
+          // Mevcut dönem - tüm fabrika değerleri
+          kpi.kpiValues.forEach(kpiValue => {
+            totalFactoryKpiCombinations++
             const targetValue = kpi.targetValue || 100
-            const score = Math.min(100, (value / targetValue) * 100)
+            const score = Math.min(100, (kpiValue.value / targetValue) * 100)
             totalScore += score
-            
-            // Önceki dönem değeri varsa trend için kullan
-            if (kpi.kpiValues.length > 1) {
-              const prevValue = kpi.kpiValues[1].value
-              const prevScore = Math.min(100, (prevValue / targetValue) * 100)
-              previousScore += prevScore
-            }
-          }
+          })
+
+          // Önceki dönem - trend hesabı için
+          const previousValues = previousKpiValues.filter(pv => pv.kpiId === kpi.id)
+          previousValues.forEach(prevValue => {
+            const targetValue = kpi.targetValue || 100
+            const prevScore = Math.min(100, (prevValue.value / targetValue) * 100)
+            totalPreviousScore += prevScore
+          })
         })
       })
 
-      const averageScore = kpisWithValues > 0 ? totalScore / kpisWithValues : 0
-      const previousAverageScore = kpisWithValues > 0 ? previousScore / kpisWithValues : 0
+      const averageScore = totalFactoryKpiCombinations > 0 ? totalScore / totalFactoryKpiCombinations : 0
+      const previousAverageScore = totalFactoryKpiCombinations > 0 ? totalPreviousScore / totalFactoryKpiCombinations : 0
       const trend = averageScore - previousAverageScore
-      const completionRate = totalKpis > 0 ? (kpisWithValues / totalKpis) * 100 : 0
+
+      // Eğer belirli bir fabrika seçiliyse, o fabrika için ayrı hesaplama
+      let factorySpecificScore = null
+      if (factoryId) {
+        let factoryScore = 0
+        let factoryKpiCount = 0
+        
+        sa.strategicTargets.forEach(sh => {
+          sh.kpis.forEach(kpi => {
+            const factoryKpiValue = kpi.kpiValues.find(kv => kv.factory.id === factoryId)
+            if (factoryKpiValue) {
+              factoryKpiCount++
+              const targetValue = kpi.targetValue || 100
+              const score = Math.min(100, (factoryKpiValue.value / targetValue) * 100)
+              factoryScore += score
+            }
+          })
+        })
+        
+        factorySpecificScore = factoryKpiCount > 0 ? Math.round(factoryScore / factoryKpiCount) : 0
+      }
 
       return {
         id: sa.id,
         code: sa.code,
         title: sa.title,
         description: sa.description || '',
-        successRate: Math.round(averageScore),
+        successRate: Math.round(averageScore), // Tüm fabrikalar ortalaması
+        factorySpecificScore, // Seçili fabrika skoru (varsa)
         trend: Math.round(trend),
+        totalFactories: new Set(
+          sa.strategicTargets.flatMap(sh => 
+            sh.kpis.flatMap(kpi => 
+              kpi.kpiValues.map(kv => kv.factory.id)
+            )
+          )
+        ).size,
         status: averageScore >= 80 ? 'excellent' : 
                 averageScore >= 60 ? 'good' : 
                 averageScore >= 40 ? 'at-risk' : 'critical'

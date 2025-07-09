@@ -235,7 +235,30 @@ async function calculateSimulationResults(simulationId: string) {
     const simulation = await prisma.simulation.findUnique({
       where: { id: simulationId },
       include: {
-        simulationItems: true
+        simulationItems: {
+          include: {
+            action: {
+              include: {
+                actionKpis: {
+                  include: {
+                    kpi: {
+                      include: {
+                        kpiValues: {
+                          where: {
+                            period: '2024-Q4' // Mevcut dönem
+                          },
+                          include: {
+                            factory: true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }) as unknown as SimulationWithRelations | null
 
@@ -243,30 +266,60 @@ async function calculateSimulationResults(simulationId: string) {
       throw new Error('Simülasyon bulunamadı')
     }
 
-    // Basit simülasyon sonucu hesaplama
+    // Gelişmiş simülasyon sonucu hesaplama (ActionKpi ilişkilerini kullanarak)
     const totalItems = simulation.simulationItems.length
+    let totalPotentialImpact = 0
+    let totalWeightedCompletion = 0
+    let totalKpiImpacts = 0
+
+    simulation.simulationItems.forEach((item: any) => {
+      const completionRate = item.assumedCompletion / 100
+      
+      // Bu eylemin etkilediği KPI'lar
+      item.action.actionKpis.forEach((actionKpi: any) => {
+        const impactScore = actionKpi.impactScore || 0.5 // Varsayılan etki
+        const kpiCurrentValues = actionKpi.kpi.kpiValues
+        
+        if (kpiCurrentValues.length > 0) {
+          // Tüm fabrikalar için ortalama mevcut değer
+          const avgCurrentValue = kpiCurrentValues.reduce((sum: number, kv: any) => sum + kv.value, 0) / kpiCurrentValues.length
+          const targetValue = actionKpi.kpi.targetValue || 100
+          const currentAchievement = Math.min(100, (avgCurrentValue / targetValue) * 100)
+          
+          // Eylemin tamamlanma oranına göre KPI'ya olan etkisi
+          const potentialImprovement = impactScore * completionRate * (100 - currentAchievement)
+          totalPotentialImpact += potentialImprovement
+          totalKpiImpacts++
+        }
+      })
+      
+      totalWeightedCompletion += completionRate * (item.action.actionKpis.length || 1)
+    })
+
     const avgCompletion = totalItems > 0 
-      ? simulation.simulationItems.reduce((sum: number, item: SimulationWithRelations['simulationItems'][0]) => sum + (item.assumedCompletion || 50), 0) / totalItems
+      ? simulation.simulationItems.reduce((sum: number, item: any) => sum + (item.assumedCompletion || 50), 0) / totalItems
       : 50
 
-    const avgImpact = totalItems > 0
-      ? simulation.simulationItems.reduce((sum: number, item: SimulationWithRelations['simulationItems'][0]) => sum + (item.estimatedImpact || 0), 0) / totalItems
-      : 0
+    const avgPotentialImpact = totalKpiImpacts > 0 ? totalPotentialImpact / totalKpiImpacts : 0
+    const overallScore = Math.round((avgCompletion + avgPotentialImpact) / 2)
+    const riskScore = Math.max(0, Math.min(100, 100 - avgPotentialImpact))
 
     return {
       totalItems,
       avgCompletion: Math.round(avgCompletion),
-      avgImpact: Math.round(avgImpact * 100) / 100,
-      overallScore: Math.round((avgCompletion + Math.abs(avgImpact * 10)) / 2),
-      riskScore: Math.max(0, Math.min(100, 50 + avgImpact * 10)),
-      items: simulation.simulationItems.map((item: SimulationWithRelations['simulationItems'][0]) => ({
+      avgImpact: Math.round(avgPotentialImpact * 100) / 100,
+      overallScore,
+      riskScore,
+      totalKpiImpacts,
+      items: simulation.simulationItems.map((item: any) => ({
         id: item.id,
         actionId: item.actionId,
         assumedCompletion: item.assumedCompletion,
         estimatedImpact: item.estimatedImpact,
         estimatedImpactCategory: item.estimatedImpactCategory === 'HIGH' ? 'YÜKSEK' :
                                item.estimatedImpactCategory === 'MEDIUM' ? 'ORTA' :
-                               item.estimatedImpactCategory === 'LOW' ? 'DÜŞÜK' : 'KRİTİK'
+                               item.estimatedImpactCategory === 'LOW' ? 'DÜŞÜK' : 'KRİTİK',
+        impactedKpiCount: item.action.actionKpis.length
       }))
     }
   } catch (error) {
@@ -277,6 +330,7 @@ async function calculateSimulationResults(simulationId: string) {
       avgImpact: 0,
       overallScore: 0,
       riskScore: 50,
+      totalKpiImpacts: 0,
       items: []
     }
   }
