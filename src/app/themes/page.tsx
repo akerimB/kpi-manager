@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, PieChart, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { getCurrentUser, getUserApiParams } from '@/lib/user-context'
 
@@ -45,22 +45,39 @@ export default function ThemeTracking() {
   // Kullanıcı bağlamını al
   const userContext = getCurrentUser()
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const apiParams = getUserApiParams(userContext)
-        const response = await fetch(`/api/themes?${apiParams}`)
-        const themeData = await response.json()
-        setData(themeData)
-      } catch (error) {
-        console.error('Error fetching theme data:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
+  // Memoized values to prevent unnecessary re-renders
+  const isAuthenticated = useMemo(() => !!userContext, [userContext])
+  const apiParams = useMemo(() => 
+    userContext ? getUserApiParams(userContext) : '', 
+    [userContext]
+  )
 
+  // Authentication kontrolü
+  useEffect(() => {
+    if (!isAuthenticated) {
+      window.location.href = '/login'
+      return
+    }
+  }, [isAuthenticated])
+
+  // Memoized fetch function
+  const fetchData = useCallback(async () => {
+    if (!userContext || !apiParams) return
+
+    try {
+      const response = await fetch(`/api/themes?${apiParams}`)
+      const themeData = await response.json()
+      setData(themeData)
+    } catch (error) {
+      console.error('Error fetching theme data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [userContext, apiParams])
+
+  useEffect(() => {
     fetchData()
-  }, [])
+  }, [fetchData])
 
   const getStatusColor = (status: string) => {
     switch (status) {

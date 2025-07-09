@@ -1,6 +1,6 @@
 import { User } from './auth'
 
-// Simulated user context - gerçek uygulamada authentication service'den gelecek
+// Gerçek kullanıcı context'i - authentication'dan gelecek
 export interface UserContext {
   user: User | null
   isAuthenticated: boolean
@@ -15,83 +15,187 @@ export interface UserContext {
   }
 }
 
-// Global state for switching between users for testing
-let currentUserType: 'MODEL_FACTORY' | 'UPPER_MANAGEMENT' = 'MODEL_FACTORY'
+// Cache for memoization
+let cachedUserContext: UserContext | null = null
+let lastTokenCheck = ''
 
-// Simulated current user - gerçek uygulamada authentication service'den gelecek
-export function getCurrentUser(): UserContext {
-  // Bu fonksiyon gerçek uygulamada JWT token'dan veya session'dan gelecek
-  
-  if (currentUserType === 'UPPER_MANAGEMENT') {
-    return getUpperManagementUser()
+// Gerçek authentication sistemi
+export function getCurrentUser(): UserContext | null {
+  // Client-side'da çalışıyorsa
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('authToken')
+    const userStr = localStorage.getItem('user')
+    
+    if (!token || !userStr) {
+      cachedUserContext = null
+      lastTokenCheck = ''
+      return null
+    }
+    
+    // Eğer token değişmemişse cached değeri döndür
+    if (lastTokenCheck === token && cachedUserContext) {
+      return cachedUserContext
+    }
+    
+    try {
+      const user = JSON.parse(userStr)
+      
+      // Rol bazlı yetkiler
+      const permissions = getPermissionsByRole(user.role)
+      
+      const userContext = {
+        user,
+        isAuthenticated: true,
+        userRole: user.role,
+        factoryId: user.factoryId,
+        permissions
+      }
+      
+      // Cache'i güncelle
+      cachedUserContext = userContext
+      lastTokenCheck = token
+      
+      return userContext
+    } catch (error) {
+      console.error('Error parsing user data:', error)
+      cachedUserContext = null
+      lastTokenCheck = ''
+      return null
+    }
   }
   
-  return {
-    user: {
-      id: 'user-1',
-      email: 'fabrika1@example.com',
-      name: 'Fabrika 1 Kullanıcısı',
-      role: 'MODEL_FACTORY',
-      factoryId: 'cmcwg5ap9000klvzdbgbxzfqr', // İlk fabrikanın ID'si
-      isActive: true,
-      permissions: {
-        canViewAllFactories: false,
-        canExportData: false,
-        canManageActions: false,
-        canViewAnalytics: false,
-        canCreateSimulations: false
-      }
-    },
-    isAuthenticated: true,
-    userRole: 'MODEL_FACTORY',
-    factoryId: 'cmcwg5ap9000klvzdbgbxzfqr',
-    permissions: {
+  // Server-side'da null döndür
+  return null
+}
+
+// Rol bazlı yetkiler
+function getPermissionsByRole(role: string) {
+  const DEFAULT_PERMISSIONS = {
+    MODEL_FACTORY: {
       canViewAllFactories: false,
       canExportData: false,
       canManageActions: false,
       canViewAnalytics: false,
       canCreateSimulations: false
-    }
-  }
-}
-
-// Test için rol değiştirme fonksiyonu
-export function switchUserRole(role: 'MODEL_FACTORY' | 'UPPER_MANAGEMENT') {
-  currentUserType = role
-  // Sayfayı yenile
-  if (typeof window !== 'undefined') {
-    window.location.reload()
-  }
-}
-
-// Üst yönetim kullanıcısı için simulated context
-export function getUpperManagementUser(): UserContext {
-  return {
-    user: {
-      id: 'user-2',
-      email: 'yonetim@example.com',
-      name: 'Üst Yönetim Kullanıcısı',
-      role: 'UPPER_MANAGEMENT',
-      factoryId: null,
-      isActive: true,
-      permissions: {
-        canViewAllFactories: true,
-        canExportData: true,
-        canManageActions: true,
-        canViewAnalytics: true,
-        canCreateSimulations: true
-      }
     },
-    isAuthenticated: true,
-    userRole: 'UPPER_MANAGEMENT',
-    factoryId: null,
-    permissions: {
+    UPPER_MANAGEMENT: {
+      canViewAllFactories: true,
+      canExportData: true,
+      canManageActions: true,
+      canViewAnalytics: true,
+      canCreateSimulations: true
+    },
+    ADMIN: {
       canViewAllFactories: true,
       canExportData: true,
       canManageActions: true,
       canViewAnalytics: true,
       canCreateSimulations: true
     }
+  }
+  
+  return DEFAULT_PERMISSIONS[role as keyof typeof DEFAULT_PERMISSIONS] || DEFAULT_PERMISSIONS.MODEL_FACTORY
+}
+
+// Giriş yapma fonksiyonu
+export async function login(email: string, password: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    })
+
+    const data = await response.json()
+
+    if (response.ok) {
+      localStorage.setItem('authToken', data.token)
+      localStorage.setItem('user', JSON.stringify(data.user))
+      
+      // Cache'i temizle
+      cachedUserContext = null
+      lastTokenCheck = ''
+      
+      return { success: true }
+    } else {
+      return { success: false, error: data.error }
+    }
+  } catch (error) {
+    return { success: false, error: 'Bir hata oluştu' }
+  }
+}
+
+// Çıkış yapma fonksiyonu
+export async function logout(): Promise<void> {
+  try {
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+      }
+    })
+  } catch (error) {
+    console.error('Logout error:', error)
+  } finally {
+    localStorage.removeItem('authToken')
+    localStorage.removeItem('user')
+    
+    // Cache'i temizle
+    cachedUserContext = null
+    lastTokenCheck = ''
+    
+    window.location.href = '/login'
+  }
+}
+
+// Token doğrulama fonksiyonu
+export async function verifyToken(): Promise<boolean> {
+  const token = localStorage.getItem('authToken')
+  
+  if (!token) {
+    return false
+  }
+  
+  try {
+    const response = await fetch('/api/auth/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ token }),
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      localStorage.setItem('user', JSON.stringify(data.user))
+      
+      // Cache'i temizle ki yeni data ile güncellensin
+      cachedUserContext = null
+      lastTokenCheck = ''
+      
+      return true
+    } else {
+      localStorage.removeItem('authToken')
+      localStorage.removeItem('user')
+      
+      // Cache'i temizle
+      cachedUserContext = null
+      lastTokenCheck = ''
+      
+      return false
+    }
+  } catch (error) {
+    console.error('Token verification error:', error)
+    localStorage.removeItem('authToken')
+    localStorage.removeItem('user')
+    
+    // Cache'i temizle
+    cachedUserContext = null
+    lastTokenCheck = ''
+    
+    return false
   }
 }
 
@@ -107,4 +211,20 @@ export function getUserApiParams(userContext: UserContext): string {
   }
   
   return params.toString()
+}
+
+// Authentication guard hook
+export function useAuthGuard() {
+  if (typeof window !== 'undefined') {
+    const userContext = getCurrentUser()
+    
+    if (!userContext) {
+      window.location.href = '/login'
+      return null
+    }
+    
+    return userContext
+  }
+  
+  return null
 } 

@@ -38,8 +38,16 @@ export default function StrategyPage() {
   // Kullanıcı bağlamını al
   const userContext = getCurrentUser()
 
+  // Authentication ve rol kontrolü
+  useEffect(() => {
+    if (!userContext) {
+      window.location.href = '/login'
+      return
+    }
+  }, [userContext])
+
   // Rol kontrolü - sadece üst yönetim ve admin erişebilir
-  if (userContext.userRole === 'MODEL_FACTORY') {
+  if (userContext && userContext.userRole === 'MODEL_FACTORY') {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -55,6 +63,8 @@ export default function StrategyPage() {
   }
 
   useEffect(() => {
+    if (!userContext) return
+
     const fetchData = async () => {
       try {
         const apiParams = getUserApiParams(userContext)
@@ -83,7 +93,7 @@ export default function StrategyPage() {
     }
 
     fetchData()
-  }, [])
+  }, [userContext])
 
   const getStatusColor = (status: string) => {
     switch (status) {

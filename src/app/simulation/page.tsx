@@ -56,8 +56,16 @@ export default function SimulationPage() {
   // Kullanıcı bağlamını al
   const userContext = getCurrentUser()
 
+  // Authentication ve rol kontrolü
+  useEffect(() => {
+    if (!userContext) {
+      window.location.href = '/login'
+      return
+    }
+  }, [userContext])
+
   // Rol kontrolü - sadece simülasyon yetkisi olanlar erişebilir
-  if (!userContext.permissions.canCreateSimulations) {
+  if (userContext && !userContext.permissions.canCreateSimulations) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -73,6 +81,8 @@ export default function SimulationPage() {
   }
 
   useEffect(() => {
+    if (!userContext) return
+
     const fetchData = async () => {
       try {
         const apiParams = getUserApiParams(userContext)
@@ -97,7 +107,7 @@ export default function SimulationPage() {
     }
 
     fetchData()
-  }, [])
+  }, [userContext])
 
   const addActionToSimulation = (action: Action) => {
     if (selectedActions.find(item => item.actionId === action.id)) return

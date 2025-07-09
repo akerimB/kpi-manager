@@ -6,6 +6,11 @@ export interface User {
   name: string | null
   role: 'MODEL_FACTORY' | 'UPPER_MANAGEMENT' | 'ADMIN'
   factoryId: string | null
+  factory?: {
+    id: string
+    name: string
+    code: string
+  } | null
   isActive: boolean
   permissions: {
     canViewAllFactories: boolean

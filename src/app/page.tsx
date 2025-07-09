@@ -2,10 +2,10 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { BarChart3, TrendingUp, Target, Users, Calendar, Settings, Clock, CheckCircle, Download, RefreshCw, Bell } from "lucide-react"
-import { useEffect, useState } from "react"
+import { BarChart3, TrendingUp, Target, Users, Calendar, Settings, Clock, CheckCircle, Download, RefreshCw, Bell, LogOut } from "lucide-react"
+import { useEffect, useState, useMemo, useCallback } from "react"
 import Link from "next/link"
-import { getCurrentUser, getUserApiParams, switchUserRole } from '@/lib/user-context'
+import { getCurrentUser, getUserApiParams, logout } from '@/lib/user-context'
 
 interface DashboardStats {
   kpiCount: number
@@ -18,24 +18,23 @@ interface DashboardStats {
 
 interface ThemeData {
   name: string
-  value: number
-  color: string
+  score: number
+  status: 'excellent' | 'good' | 'at-risk' | 'critical'
+  kpiCount: number
 }
 
 interface PhaseData {
-  name: string
-  completion: number
-  actionCount: number
+  phase: string
+  count: number
+  completionRate: number
 }
 
 interface Activity {
-  type: 'action' | 'kpi'
-  title: string
+  id: string
+  type: 'kpi_entry' | 'action_update' | 'simulation'
   description: string
-  target: string
-  time: string
-  progress?: number
-  value?: number
+  timestamp: string
+  user: string
 }
 
 export default function Home() {
@@ -48,40 +47,62 @@ export default function Home() {
   // Kullanıcı bağlamını al
   const userContext = getCurrentUser()
 
+  // Memoized values to prevent unnecessary re-renders
+  const isAuthenticated = useMemo(() => !!userContext, [userContext])
+  const apiParams = useMemo(() => 
+    userContext ? getUserApiParams(userContext) : '', 
+    [userContext]
+  )
+
+  // Authentication kontrolü
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const apiParams = getUserApiParams(userContext)
-        
-        const [statsRes, themesRes, phasesRes, activitiesRes] = await Promise.all([
-          fetch(`/api/dashboard/stats?${apiParams}`),
-          fetch(`/api/dashboard/themes?${apiParams}`),
-          fetch(`/api/dashboard/phases?${apiParams}`),
-          fetch(`/api/dashboard/activities?${apiParams}`)
-        ])
-
-        const [statsData, themesData, phasesData, activitiesData] = await Promise.all([
-          statsRes.json(),
-          themesRes.json(),
-          phasesRes.json(),
-          activitiesRes.json()
-        ])
-
-        setStats(statsData)
-        setThemes(themesData)
-        setPhases(phasesData)
-        setActivities(activitiesData)
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error)
-      } finally {
-        setLoading(false)
-      }
+    if (!isAuthenticated) {
+      window.location.href = '/login'
+      return
     }
+  }, [isAuthenticated])
 
+  // Memoized fetch function
+  const fetchData = useCallback(async () => {
+    if (!userContext || !apiParams) return
+
+    try {
+      const [statsRes, themesRes, phasesRes, activitiesRes] = await Promise.all([
+        fetch(`/api/dashboard/stats?${apiParams}`),
+        fetch(`/api/dashboard/themes?${apiParams}`),
+        fetch(`/api/dashboard/phases?${apiParams}`),
+        fetch(`/api/dashboard/activities?${apiParams}`)
+      ])
+
+      const [statsData, themesData, phasesData, activitiesData] = await Promise.all([
+        statsRes.json(),
+        themesRes.json(),
+        phasesRes.json(),
+        activitiesRes.json()
+      ])
+
+      setStats(statsData)
+      setThemes(themesData)
+      setPhases(phasesData)
+      setActivities(activitiesData)
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [userContext, apiParams])
+
+  useEffect(() => {
     fetchData()
+  }, [fetchData])
+
+  const handleLogout = useCallback(async () => {
+    if (confirm('Çıkış yapmak istediğinizden emin misiniz?')) {
+      await logout()
+    }
   }, [])
 
-  if (loading) {
+  if (!userContext || loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -118,21 +139,20 @@ export default function Home() {
                   {userContext.userRole === 'MODEL_FACTORY' ? 'Model Fabrika' :
                    userContext.userRole === 'UPPER_MANAGEMENT' ? 'Üst Yönetim' : 'Admin'}
                 </span>
-                {/* Test için rol değiştirme butonu */}
-                <button
-                  onClick={() => switchUserRole(userContext.userRole === 'MODEL_FACTORY' ? 'UPPER_MANAGEMENT' : 'MODEL_FACTORY')}
-                  className="text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded transition-colors"
-                  title="Test için rol değiştir"
-                >
-                  🔄 Rol Değiştir
-                </button>
               </div>
               <div className="flex space-x-2">
                 <button className="p-2 text-gray-400 hover:text-gray-600">
                   <Bell className="h-5 w-5" />
                 </button>
-                <button className="p-2 text-gray-400 hover:text-gray-600">
+                <Link href="/settings" className="p-2 text-gray-400 hover:text-gray-600">
                   <Settings className="h-5 w-5" />
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="p-2 text-gray-400 hover:text-red-600"
+                  title="Çıkış Yap"
+                >
+                  <LogOut className="h-5 w-5" />
                 </button>
               </div>
             </div>
@@ -190,10 +210,18 @@ export default function Home() {
               
               {/* Admin ayarları sadece admin için */}
               {userContext.userRole === 'ADMIN' && (
-                <a href="#" className="sidebar-nav-item">
+                <Link href="/settings" className="sidebar-nav-item">
                   <Settings className="h-5 w-5" />
                   <span>Yönetici / Ayarlar</span>
-                </a>
+                </Link>
+              )}
+              
+              {/* Ayarlar herkese açık */}
+              {userContext.userRole !== 'ADMIN' && (
+                <Link href="/settings" className="sidebar-nav-item">
+                  <Settings className="h-5 w-5" />
+                  <span>Ayarlar</span>
+                </Link>
               )}
             </div>
           </nav>
@@ -354,13 +382,19 @@ export default function Home() {
                         <div className="flex-1">
                           <div className="flex justify-between items-center mb-1">
                             <span className="text-sm font-medium">{theme.name}</span>
-                            <span className="text-sm text-gray-600">{theme.value}%</span>
+                            <span className="text-sm text-gray-600">{theme.score}%</span>
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div 
-                              className={`h-2 rounded-full ${colors[index]}`}
-                              style={{ width: `${theme.value}%` }}
-                            ></div>
+                          <div className="mt-2">
+                            <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                              <span>İlerleme</span>
+                              <span>{theme.score}%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div 
+                                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${theme.score}%` }}
+                              ></div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -382,18 +416,18 @@ export default function Home() {
               <CardContent>
                 <div className="space-y-4">
                   {phases.map((phase, index) => (
-                    <div key={phase.name} className="space-y-2">
+                    <div key={index} className="p-3 border-l-4 border-blue-500 bg-blue-50 rounded-r-lg">
                       <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium">{phase.name}</span>
-                        <span className="text-sm text-gray-600">{phase.completion}%</span>
+                        <span className="text-sm font-medium">{phase.phase}</span>
+                        <span className="text-sm text-gray-600">{phase.completionRate}%</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div 
                           className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${phase.completion}%` }}
+                          style={{ width: `${phase.completionRate}%` }}
                         ></div>
                       </div>
-                      <div className="text-xs text-gray-500">{phase.actionCount} eylem</div>
+                      <div className="text-xs text-gray-500">{phase.count} eylem</div>
                     </div>
                   ))}
                 </div>
@@ -415,27 +449,21 @@ export default function Home() {
                 {activities.map((activity, index) => (
                   <div key={index} className="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded-lg">
                     <div className={`w-2 h-2 rounded-full mt-2 ${
-                      activity.type === 'kpi' ? 'bg-blue-500' : 'bg-green-500'
+                      activity.type === 'kpi_entry' ? 'bg-blue-500' : 'bg-green-500'
                     }`}></div>
                     <div className="flex-1">
                       <div className="flex justify-between items-start">
                         <div>
-                          <p className="text-sm font-medium">{activity.title}</p>
-                          <p className="text-xs text-gray-600">{activity.description}</p>
-                          <p className="text-xs text-gray-500 mt-1">{activity.target}</p>
+                          <p className="text-sm font-medium">{activity.description}</p>
+                          <p className="text-xs text-gray-600">{activity.timestamp}</p>
+                          <p className="text-xs text-gray-500 mt-1">{activity.user}</p>
                         </div>
                         <div className="text-right">
-                          <span className="text-xs text-gray-500">{activity.time}</span>
-                          {activity.progress && (
-                            <div className="text-xs text-green-600 font-medium">
-                              %{activity.progress}
-                            </div>
-                          )}
-                          {activity.value && (
-                            <div className="text-xs text-blue-600 font-medium">
-                              {activity.value}
-                            </div>
-                          )}
+                          <span className="text-xs text-gray-500">{activity.timestamp}</span>
+                          {/* The original code had activity.progress, activity.value, and activity.target,
+                             but they are not defined in the Activity interface.
+                             Assuming they were meant to be part of the Activity object or are placeholders.
+                             For now, removing them as they are not in the interface. */}
                         </div>
                       </div>
                     </div>

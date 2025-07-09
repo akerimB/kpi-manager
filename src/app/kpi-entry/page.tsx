@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { getCurrentUser, getUserApiParams } from '@/lib/user-context';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Save, TrendingUp, TrendingDown, Calendar, Factory, Search, AlertCircle, CheckCircle } from 'lucide-react';
-import { getCurrentUser, getUserApiParams } from '@/lib/user-context';
 
 interface KPI {
   id: string;
@@ -56,72 +56,89 @@ export default function KPIEntryPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
+  // Kullanıcı bağlamını al
+  const userContext = getCurrentUser()
+
+  // Memoized values to prevent unnecessary re-renders
+  const isAuthenticated = useMemo(() => !!userContext, [userContext])
+  const apiParams = useMemo(() => 
+    userContext ? getUserApiParams(userContext) : '', 
+    [userContext]
+  )
+
+  // Authentication kontrolü
+  useEffect(() => {
+    if (!isAuthenticated) {
+      window.location.href = '/login'
+      return
+    }
+  }, [isAuthenticated])
+
+  // Memoized fetch function
+  const fetchInitialData = useCallback(async () => {
+    if (!userContext || !apiParams) return
+
+    try {
+      console.log('Starting data fetch...')
+      const baseUrl = window.location.origin
+      
+      const [kpisRes, factoriesRes] = await Promise.all([
+        fetch(`${baseUrl}/api/kpis?${apiParams}`),
+        fetch(`${baseUrl}/api/factories?${apiParams}`)
+      ])
+      
+      console.log('Got responses:', { kpisStatus: kpisRes.status, factoriesStatus: factoriesRes.status })
+      
+      if (!kpisRes.ok || !factoriesRes.ok) {
+        console.error('API request failed:', { kpisStatus: kpisRes.status, factoriesStatus: factoriesRes.status })
+        setLoading(false)
+        return
+      }
+      
+      const kpisData = await kpisRes.json()
+      const factoriesData = await factoriesRes.json()
+      
+      console.log('Fetched data:', { kpisCount: kpisData.length, factoriesCount: factoriesData.length })
+      
+      // Ensure kpisData is an array
+      if (Array.isArray(kpisData)) {
+        setKpis(kpisData)
+      } else {
+        console.error('KPIs data is not an array:', kpisData)
+        setKpis([])
+      }
+      
+      // Ensure factoriesData is an array
+      if (Array.isArray(factoriesData)) {
+        setFactories(factoriesData)
+        
+        // Model fabrika kullanıcısı için kendi fabrikasını seç
+        if (userContext.userRole === 'MODEL_FACTORY' && userContext.factoryId) {
+          const userFactory = factoriesData.find(f => f.id === userContext.factoryId)
+          if (userFactory) {
+            setSelectedFactory(userFactory.code)
+          }
+        } else if (factoriesData.length > 0) {
+          setSelectedFactory(factoriesData[0].code)
+        }
+      } else {
+        console.error('Factories data is not an array:', factoriesData)
+        setFactories([])
+      }
+      
+    } catch (error) {
+      console.error('Error fetching data:', error)
+      setKpis([])
+      setFactories([])
+    } finally {
+      setLoading(false)
+    }
+  }, [userContext, apiParams])
+
   // Fetch initial data
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        console.log('Starting data fetch...')
-        const baseUrl = window.location.origin
-        
-        // Gerçek kullanıcı bağlamını kullan
-        const userContext = getCurrentUser()
-        const apiParams = getUserApiParams(userContext)
-        
-        const [kpisRes, factoriesRes] = await Promise.all([
-          fetch(`${baseUrl}/api/kpis?${apiParams}`),
-          fetch(`${baseUrl}/api/factories`)
-        ])
-        
-        console.log('Got responses:', { kpisStatus: kpisRes.status, factoriesStatus: factoriesRes.status })
-        
-        if (!kpisRes.ok || !factoriesRes.ok) {
-          console.error('API request failed:', { kpisStatus: kpisRes.status, factoriesStatus: factoriesRes.status })
-          setLoading(false)
-          return
-        }
-        
-        const kpisData = await kpisRes.json()
-        const factoriesData = await factoriesRes.json()
-        
-        console.log('Fetched data:', { kpisCount: kpisData.length, factoriesCount: factoriesData.length })
-        
-        // Ensure kpisData is an array
-        if (Array.isArray(kpisData)) {
-          setKpis(kpisData)
-        } else {
-          console.error('KPIs data is not an array:', kpisData)
-          setKpis([])
-        }
-        
-        // Ensure factoriesData is an array
-        if (Array.isArray(factoriesData)) {
-          setFactories(factoriesData)
-          
-          // Model fabrika kullanıcısı için kendi fabrikasını seç
-          if (userContext.userRole === 'MODEL_FACTORY' && userContext.factoryId) {
-            const userFactory = factoriesData.find(f => f.id === userContext.factoryId)
-            if (userFactory) {
-              setSelectedFactory(userFactory.code)
-            }
-          } else if (factoriesData.length > 0) {
-            setSelectedFactory(factoriesData[0].code)
-          }
-        } else {
-          console.error('Factories data is not an array:', factoriesData)
-          setFactories([])
-        }
-        
-      } catch (error) {
-        console.error('Error fetching data:', error)
-        setKpis([])
-        setFactories([])
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [])
+    fetchInitialData()
+  }, [fetchInitialData])
 
   const fetchKPIValues = useCallback(async () => {
     try {
@@ -148,7 +165,7 @@ export default function KPIEntryPage() {
     if (selectedFactory && selectedPeriod && factories.length > 0) {
       fetchKPIValues();
     }
-  }, [selectedFactory, selectedPeriod, factories, fetchKPIValues]);
+  }, [fetchKPIValues, selectedFactory, selectedPeriod, factories.length]);
 
   const handleValueChange = (kpiId: string, value: number) => {
     setKpiValues(prev => {

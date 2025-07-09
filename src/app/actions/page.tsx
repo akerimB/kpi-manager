@@ -3,7 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Calendar, Filter, Search, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Clock, Target as TargetIcon } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { getCurrentUser, getUserApiParams } from '@/lib/user-context'
@@ -62,8 +62,23 @@ export default function ActionManagement() {
   // Kullanıcı bağlamını al
   const userContext = getCurrentUser()
 
+  // Memoized values to prevent unnecessary re-renders
+  const isAuthenticated = useMemo(() => !!userContext, [userContext])
+  const apiParams = useMemo(() => 
+    userContext ? getUserApiParams(userContext) : '', 
+    [userContext]
+  )
+
+  // Authentication ve rol kontrolü
+  useEffect(() => {
+    if (!isAuthenticated) {
+      window.location.href = '/login'
+      return
+    }
+  }, [isAuthenticated])
+
   // Rol kontrolü - sadece üst yönetim ve admin erişebilir
-  if (userContext.userRole === 'MODEL_FACTORY') {
+  if (userContext && userContext.userRole === 'MODEL_FACTORY') {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -78,32 +93,33 @@ export default function ActionManagement() {
     )
   }
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const apiParams = getUserApiParams(userContext)
-        
-        const [actionsRes, phasesRes] = await Promise.all([
-          fetch(`/api/actions?${apiParams}`),
-          fetch(`/api/actions/phases?${apiParams}`)
-        ])
+  // Memoized fetch function
+  const fetchData = useCallback(async () => {
+    if (!userContext || !apiParams) return
 
-        const [actionsData, phasesData] = await Promise.all([
-          actionsRes.json(),
-          phasesRes.json()
-        ])
+    try {
+      const [actionsRes, phasesRes] = await Promise.all([
+        fetch(`/api/actions?${apiParams}`),
+        fetch(`/api/actions/phases?${apiParams}`)
+      ])
 
-        setActions(actionsData)
-        setPhaseStats(phasesData)
-      } catch (error) {
-        console.error('Error fetching action data:', error)
-      } finally {
-        setLoading(false)
-      }
+      const [actionsData, phasesData] = await Promise.all([
+        actionsRes.json(),
+        phasesRes.json()
+      ])
+
+      setActions(actionsData)
+      setPhaseStats(phasesData)
+    } catch (error) {
+      console.error('Error fetching action data:', error)
+    } finally {
+      setLoading(false)
     }
+  }, [userContext, apiParams])
 
+  useEffect(() => {
     fetchData()
-  }, [])
+  }, [fetchData])
 
   const updateActionProgress = async (actionId: string, newProgress: number) => {
     try {
