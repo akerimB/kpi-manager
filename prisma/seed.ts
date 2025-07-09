@@ -40,6 +40,7 @@ async function seedStrategicGoals() {
   ]
 
   for (const sg of strategicGoals) {
+    console.log(`Creating strategic goal: ${sg.code}`)
     await prisma.strategicGoal.upsert({
       where: { code: sg.code },
       update: { title: sg.title },
@@ -52,25 +53,29 @@ async function seedStrategicTargets() {
   console.log('🎯 Seeding Strategic Targets...')
   
   try {
-    // SA_to_SH_Mapping.csv dosyasını okuma
     const csvPath = path.join(process.cwd(), 'SA_to_SH_Mapping.csv')
+    console.log('Reading from:', csvPath)
     const csvContent = fs.readFileSync(csvPath, 'utf-8')
     const rows = parseCSV(csvContent)
     
-    // Header'ı atla
     const dataRows = rows.slice(1)
+    console.log(`Found ${dataRows.length} strategic targets`)
     
     for (const row of dataRows) {
       const [saCode, saTitle, shCode] = row
+      console.log(`Processing: SA=${saCode}, SH=${shCode}`)
       
-      if (!saCode || !shCode) continue
+      if (!saCode || !shCode) {
+        console.log('Skipping row due to missing data')
+        continue
+      }
       
-      // SA'yı bul
       const strategicGoal = await prisma.strategicGoal.findUnique({
         where: { code: saCode }
       })
       
       if (strategicGoal) {
+        console.log(`Found strategic goal ${saCode}, creating target ${shCode}`)
         await prisma.strategicTarget.upsert({
           where: { code: shCode },
           update: { strategicGoalId: strategicGoal.id },
@@ -79,6 +84,8 @@ async function seedStrategicTargets() {
             strategicGoalId: strategicGoal.id
           }
         })
+      } else {
+        console.log(`Strategic goal ${saCode} not found`)
       }
     }
   } catch (error) {
@@ -90,26 +97,28 @@ async function seedKPIs() {
   console.log('📊 Seeding KPIs...')
   
   try {
-    // KPI_to_SH_Mapping.csv dosyasını okuma
     const csvPath = path.join(process.cwd(), 'KPI_to_SH_Mapping.csv')
+    console.log('Reading from:', csvPath)
     const csvContent = fs.readFileSync(csvPath, 'utf-8')
     const rows = parseCSV(csvContent)
     
-    // Header'ı atla
     const dataRows = rows.slice(1)
+    console.log(`Found ${dataRows.length} KPIs`)
     
     for (const row of dataRows) {
       const [kpiNumber, shCode, description] = row
+      console.log(`Processing KPI ${kpiNumber} for ${shCode}`)
       
-      if (!kpiNumber || !shCode || !description) continue
+      if (!kpiNumber || !shCode || !description) {
+        console.log('Skipping KPI due to missing data')
+        continue
+      }
       
-      // SH'yi bul
       const strategicTarget = await prisma.strategicTarget.findUnique({
         where: { code: shCode }
       })
       
       if (strategicTarget) {
-        // Tema belirleme (description'a göre)
         const themes = []
         const desc = description.toLowerCase()
         
@@ -118,7 +127,6 @@ async function seedKPIs() {
         if (desc.includes('yeşil') || desc.includes('green') || desc.includes('karbon')) themes.push('GREEN')
         if (desc.includes('dirençli') || desc.includes('resilience')) themes.push('RESILIENCE')
         
-        // Eğer tema belirtilmemişse, SH koduna göre varsayılan tema ata
         if (themes.length === 0) {
           if (shCode.startsWith('SH1')) themes.push('LEAN', 'DIGITAL', 'GREEN', 'RESILIENCE')
           else if (shCode.startsWith('SH2')) themes.push('LEAN')
@@ -126,6 +134,7 @@ async function seedKPIs() {
           else if (shCode.startsWith('SH4')) themes.push('RESILIENCE')
         }
 
+        console.log(`Creating KPI ${kpiNumber} with themes: ${themes.join(', ')}`)
         await prisma.kpi.upsert({
           where: { number: parseInt(kpiNumber) },
           update: {
@@ -140,6 +149,8 @@ async function seedKPIs() {
             strategicTargetId: strategicTarget.id
           }
         })
+      } else {
+        console.log(`Strategic target ${shCode} not found for KPI ${kpiNumber}`)
       }
     }
   } catch (error) {

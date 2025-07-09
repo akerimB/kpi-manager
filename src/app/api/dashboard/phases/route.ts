@@ -3,41 +3,39 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
+    // Get all phases with their actions
     const phases = await prisma.phase.findMany({
       include: {
         actions: {
           select: {
-            completionPercent: true
-          }
-        }
+            completionPercent: true,
+          },
+        },
       },
-      orderBy: {
-        name: 'asc'
-      }
     })
 
-    const phaseProgress = phases.map(phase => {
-      const totalActions = phase.actions.length
-      let averageCompletion = 0
-
-      if (totalActions > 0) {
-        const totalCompletion = phase.actions.reduce(
-          (sum, action) => sum + action.completionPercent, 
-          0
-        )
-        averageCompletion = Math.round(totalCompletion / totalActions)
-      }
+    // Calculate phase statistics
+    const phaseData = phases.map((phase) => {
+      const actionCount = phase.actions.length
+      const totalCompletion = phase.actions.reduce(
+        (sum, action) => sum + action.completionPercent,
+        0
+      )
+      const averageCompletion = actionCount > 0 ? totalCompletion / actionCount : 0
 
       return {
         name: phase.name,
-        completion: averageCompletion,
-        actionCount: totalActions
+        completion: Math.round(averageCompletion),
+        actionCount,
       }
     })
 
-    return NextResponse.json(phaseProgress)
+    return NextResponse.json(phaseData)
   } catch (error) {
-    console.error('Phase progress error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Error fetching phase stats:', error)
+    return NextResponse.json(
+      { error: 'Faz istatistikleri alınırken bir hata oluştu.' },
+      { status: 500 }
+    )
   }
 } 

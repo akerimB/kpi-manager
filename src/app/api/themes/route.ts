@@ -22,22 +22,22 @@ export async function GET() {
 
     // Tema başlıklarını tanımla
     const themeDefinitions = {
-      'Yalın': {
+      'YALIN': {
         name: 'Yalın Üretim',
         description: 'Verimlilik ve israf azaltma odaklı KPI\'lar',
         color: '#10B981' // green
       },
-      'Dijital': {
+      'DİJİTAL': {
         name: 'Dijital Dönüşüm', 
         description: 'Teknoloji ve dijitalleşme KPI\'ları',
         color: '#3B82F6' // blue
       },
-      'Yeşil': {
+      'YEŞİL': {
         name: 'Yeşil Üretim',
         description: 'Çevre ve sürdürülebilirlik KPI\'ları',
         color: '#059669' // emerald
       },
-      'Dirençlilik': {
+      'DİRENÇLİLİK': {
         name: 'Dirençlilik',
         description: 'Risk yönetimi ve esneklik KPI\'ları',
         color: '#DC2626' // red
@@ -46,25 +46,25 @@ export async function GET() {
 
     // KPI'ları temalara göre grupla
     const themeGroups: { [key: string]: any[] } = {
-      'Yalın': [],
-      'Dijital': [],
-      'Yeşil': [],
-      'Dirençlilik': []
+      'YALIN': [],
+      'DİJİTAL': [],
+      'YEŞİL': [],
+      'DİRENÇLİLİK': []
     }
 
     kpis.forEach(kpi => {
       // KPI tema ataması (basitleştirilmiş mantık)
-      let theme = 'Yalın' // default
+      let theme = 'YALIN' // default
       
       const description = kpi.description.toLowerCase()
       
       if (description.includes('dijital') || description.includes('teknoloji') || description.includes('otomasyon')) {
-        theme = 'Dijital'
+        theme = 'DİJİTAL'
       } else if (description.includes('çevre') || description.includes('enerji') || description.includes('yeşil') ||
                  description.includes('sürdürülebil')) {
-        theme = 'Yeşil'
+        theme = 'YEŞİL'
       } else if (description.includes('risk') || description.includes('güvenlik') || description.includes('direnc')) {
-        theme = 'Dirençlilik'
+        theme = 'DİRENÇLİLİK'
       }
 
       const currentValue = kpi.kpiValues.length > 0 ? kpi.kpiValues[0].value : 0
@@ -95,12 +95,12 @@ export async function GET() {
       const atRiskKpis = kpis.filter(kpi => kpi.achievement >= 50 && kpi.achievement < 70).length
       const criticalKpis = kpis.filter(kpi => kpi.achievement < 50).length
 
-              const themeInfo = themeDefinitions[themeKey as keyof typeof themeDefinitions]
-        return {
-          theme: themeKey,
-          name: themeInfo.name,
-          description: themeInfo.description,
-          color: themeInfo.color,
+      const themeInfo = themeDefinitions[themeKey as keyof typeof themeDefinitions]
+      return {
+        theme: themeKey,
+        name: themeInfo.name,
+        description: themeInfo.description,
+        color: themeInfo.color,
         totalKpis,
         avgAchievement: Math.round(avgAchievement),
         distribution: {
@@ -110,9 +110,9 @@ export async function GET() {
           critical: criticalKpis
         },
         kpis: kpis,
-        status: avgAchievement >= 80 ? 'excellent' :
-                avgAchievement >= 60 ? 'good' :
-                avgAchievement >= 40 ? 'at-risk' : 'critical'
+        status: avgAchievement >= 80 ? 'mükemmel' :
+                avgAchievement >= 60 ? 'iyi' :
+                avgAchievement >= 40 ? 'riskli' : 'kritik'
       }
     })
 
@@ -120,19 +120,19 @@ export async function GET() {
     const radarMetrics = [
       {
         metric: 'Verimlilik',
-        value: themeRadarData.find(t => t.theme === 'Yalın')?.avgAchievement || 0
+        value: themeRadarData.find(t => t.theme === 'YALIN')?.avgAchievement || 0
       },
       {
         metric: 'Dijitalleşme',
-        value: themeRadarData.find(t => t.theme === 'Dijital')?.avgAchievement || 0
+        value: themeRadarData.find(t => t.theme === 'DİJİTAL')?.avgAchievement || 0
       },
       {
         metric: 'Sürdürülebilirlik',
-        value: themeRadarData.find(t => t.theme === 'Yeşil')?.avgAchievement || 0
+        value: themeRadarData.find(t => t.theme === 'YEŞİL')?.avgAchievement || 0
       },
       {
         metric: 'Dirençlilik',
-        value: themeRadarData.find(t => t.theme === 'Dirençlilik')?.avgAchievement || 0
+        value: themeRadarData.find(t => t.theme === 'DİRENÇLİLİK')?.avgAchievement || 0
       },
       {
         metric: 'Genel Başarım',
@@ -156,6 +156,6 @@ export async function GET() {
     })
   } catch (error) {
     console.error('Themes API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: 'Sunucu hatası' }, { status: 500 })
   }
 } 

@@ -1,459 +1,508 @@
-'use client'
+'use client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { ArrowLeft, Target, Save, RefreshCw, Download, Bell, TrendingUp, TrendingDown, Minus } from "lucide-react"
-import { useEffect, useState } from "react"
-import Link from "next/link"
+import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import { ArrowLeft, Save, TrendingUp, TrendingDown, Calendar, Factory, Search, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface KPI {
-  id: string
-  code: string
-  name: string
-  description: string
-  theme: string
+  id: string;
+  name: string;
+  description: string;
+  themes: string;
+  shCode: string;
+  unit?: string;
+  targetValue?: number;
   strategicTarget: {
-    code: string
-    name: string
-  }
-}
-
-interface KPIValue {
-  id?: string
-  kpiId: string
-  value: number | null
-  period: string
-  factoryId: string
+    id: string;
+    code: string;
+    title?: string;
+    strategicGoal: {
+      id: string;
+      code: string;
+      title: string;
+    }
+  };
+  kpiValues: Array<{
+    id: string;
+    value: number;
+    period: string;
+  }>;
 }
 
 interface Factory {
-  id: string
-  name: string
-  code: string
+  id: string;
+  name: string;
+  code: string;
 }
 
-interface PreviousValue {
-  value: number
-  period: string
+interface KPIValue {
+  id: string;
+  kpiId: string;
+  period: string;
+  value: number;
+  target: number;
+  previousValue?: number;
 }
 
 export default function KPIEntryPage() {
-  const [kpis, setKpis] = useState<KPI[]>([])
-  const [factories, setFactories] = useState<Factory[]>([])
-  const [values, setValues] = useState<{ [key: string]: number | null }>({})
-  const [previousValues, setPreviousValues] = useState<{ [key: string]: PreviousValue }>({})
-  const [selectedFactory, setSelectedFactory] = useState('')
-  const [selectedPeriod, setSelectedPeriod] = useState('2024-Q1')
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [kpis, setKpis] = useState<KPI[]>([]);
+  const [factories, setFactories] = useState<Factory[]>([]);
+  const [kpiValues, setKpiValues] = useState<KPIValue[]>([]);
+  const [selectedFactory, setSelectedFactory] = useState('');
+  const [selectedPeriod, setSelectedPeriod] = useState('2024-Q4');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
+  // Fetch initial data
   useEffect(() => {
     const fetchData = async () => {
       try {
+        console.log('Starting data fetch...');
+        const baseUrl = window.location.origin;
+        
         const [kpisRes, factoriesRes] = await Promise.all([
-          fetch('/api/kpis'),
-          fetch('/api/factories')
-        ])
-
-        const [kpisData, factoriesData] = await Promise.all([
-          kpisRes.json(),
-          factoriesRes.json()
-        ])
-
-        setKpis(kpisData)
-        setFactories(factoriesData)
+          fetch(`${baseUrl}/api/kpis`),
+          fetch(`${baseUrl}/api/factories`)
+        ]);
+        
+        console.log('Got responses:', { kpisStatus: kpisRes.status, factoriesStatus: factoriesRes.status });
+        
+        const kpisData = await kpisRes.json();
+        const factoriesData = await factoriesRes.json();
+        
+        console.log('Parsed data:', { kpisCount: kpisData.length, factoriesCount: factoriesData.length });
+        
+        setKpis(kpisData);
+        setFactories(factoriesData);
         
         if (factoriesData.length > 0) {
-          setSelectedFactory(factoriesData[0].id)
+          setSelectedFactory(factoriesData[0].code);
+          console.log('Selected factory:', factoriesData[0].code);
         }
+        
+        console.log('Setting loading to false');
+        setLoading(false);
       } catch (error) {
-        console.error('Error fetching data:', error)
-      } finally {
-        setLoading(false)
+        console.error('Error fetching data:', error);
+        setLoading(false);
       }
-    }
+    };
 
-    fetchData()
-  }, [])
+    fetchData();
+  }, []);
 
-  useEffect(() => {
-    if (selectedFactory && selectedPeriod) {
-      fetchKPIValues()
-    }
-  }, [selectedFactory, selectedPeriod])
-
-  const fetchKPIValues = async () => {
+  const fetchKPIValues = useCallback(async () => {
     try {
-      const response = await fetch(`/api/kpi-values?factory=${selectedFactory}&period=${selectedPeriod}`)
-      const data = await response.json()
+      // Factory code'unu factory ID'ye çevir
+      const selectedFactoryData = factories.find(f => f.code === selectedFactory);
+      if (!selectedFactoryData) {
+        console.error('Selected factory not found');
+        setKpiValues([]);
+        return;
+      }
       
-      const valuesMap: { [key: string]: number | null } = {}
-      const previousMap: { [key: string]: PreviousValue } = {}
-      
-      data.forEach((item: any) => {
-        valuesMap[item.kpiId] = item.value
-        if (item.previousValue) {
-          previousMap[item.kpiId] = {
-            value: item.previousValue,
-            period: item.previousPeriod
-          }
-        }
-      })
-      
-      setValues(valuesMap)
-      setPreviousValues(previousMap)
+      const baseUrl = window.location.origin;
+      const response = await fetch(`${baseUrl}/api/kpi-values?factory=${selectedFactoryData.id}&period=${selectedPeriod}`);
+      const data = await response.json();
+      setKpiValues(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error('Error fetching KPI values:', error)
+      console.error('Error fetching KPI values:', error);
+      setKpiValues([]);
     }
-  }
+  }, [selectedFactory, selectedPeriod, factories]);
 
-  const handleValueChange = (kpiId: string, value: string) => {
-    const numValue = value === '' ? null : parseFloat(value)
-    setValues(prev => ({ ...prev, [kpiId]: numValue }))
-  }
+  // Fetch KPI values when factory or period changes
+  useEffect(() => {
+    if (selectedFactory && selectedPeriod && factories.length > 0) {
+      fetchKPIValues();
+    }
+  }, [selectedFactory, selectedPeriod, factories, fetchKPIValues]);
 
-  const saveValues = async () => {
-    setSaving(true)
-    try {
-      const valuesToSave = Object.entries(values)
-        .filter(([_, value]) => value !== null)
-        .map(([kpiId, value]) => ({
+  const handleValueChange = (kpiId: string, value: number) => {
+    setKpiValues(prev => {
+      const existing = prev.find(kv => kv.kpiId === kpiId);
+      if (existing) {
+        return prev.map(kv => 
+          kv.kpiId === kpiId ? { ...kv, value } : kv
+        );
+      } else {
+        const newValue: KPIValue = {
+          id: `temp-${kpiId}`,
           kpiId,
-          value: value!,
           period: selectedPeriod,
-          factoryId: selectedFactory
-        }))
+          value,
+          target: 100, // Default target
+        };
+        return [...prev, newValue];
+      }
+    });
+  };
 
-      const response = await fetch('/api/kpi-values', {
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveStatus('idle');
+
+    try {
+      // Factory code'unu factory ID'ye çevir
+      const selectedFactoryData = factories.find(f => f.code === selectedFactory);
+      if (!selectedFactoryData) {
+        console.error('Selected factory not found');
+        setSaveStatus('error');
+        setSaving(false);
+        return;
+      }
+
+      const baseUrl = window.location.origin;
+      const response = await fetch(`${baseUrl}/api/kpi-values`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ values: valuesToSave })
-      })
+        body: JSON.stringify({
+          values: kpiValues.map(kv => ({
+            kpiId: kv.kpiId,
+            value: kv.value,
+            period: selectedPeriod,
+            factoryId: selectedFactoryData.id
+          }))
+        }),
+      });
 
       if (response.ok) {
-        alert('KPI değerleri başarıyla kaydedildi!')
-        fetchKPIValues() // Refresh data
+        setSaveStatus('success');
+        await fetchKPIValues(); // Refresh data
+        setTimeout(() => setSaveStatus('idle'), 3000);
       } else {
-        alert('Kaydetme işleminde hata oluştu!')
+        setSaveStatus('error');
       }
     } catch (error) {
-      console.error('Error saving values:', error)
-      alert('Kaydetme işleminde hata oluştu!')
+      console.error('Error saving KPI values:', error);
+      setSaveStatus('error');
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
-  const getThemeColor = (theme: string) => {
-    switch (theme) {
-      case 'Yalın': return 'bg-blue-50 text-blue-600 border-blue-200'
-      case 'Dijital': return 'bg-green-50 text-green-600 border-green-200'
-      case 'Yeşil': return 'bg-yellow-50 text-yellow-600 border-yellow-200'
-      case 'Dirençlilik': return 'bg-red-50 text-red-600 border-red-200'
-      default: return 'bg-gray-50 text-gray-600 border-gray-200'
-    }
-  }
+  const getKPIValue = (kpiId: string) => {
+    const kpiValue = kpiValues.find(kv => kv.kpiId === kpiId);
+    return kpiValue?.value || 0;
+  };
 
-  const getChangeIndicator = (current: number | null, previous: PreviousValue | undefined) => {
-    if (!current || !previous) return null
-    
-    const change = current - previous.value
-    const changePercent = Math.round((change / previous.value) * 100)
-    
-    if (change > 0) {
-      return (
-        <div className="flex items-center text-green-600 text-xs">
-          <TrendingUp className="h-3 w-3 mr-1" />
-          +{changePercent}%
-        </div>
-      )
-    } else if (change < 0) {
-      return (
-        <div className="flex items-center text-red-600 text-xs">
-          <TrendingDown className="h-3 w-3 mr-1" />
-          {changePercent}%
-        </div>
-      )
-    } else {
-      return (
-        <div className="flex items-center text-gray-600 text-xs">
-          <Minus className="h-3 w-3 mr-1" />
-          0%
-        </div>
-      )
-    }
-  }
+  const getPreviousValue = (kpiId: string) => {
+    const kpiValue = kpiValues.find(kv => kv.kpiId === kpiId);
+    return kpiValue?.previousValue;
+  };
+
+  const getPercentageChange = (current: number, previous?: number) => {
+    if (!previous || previous === 0) return null;
+    return ((current - previous) / previous) * 100;
+  };
+
+  const getThemeColor = (themes: string) => {
+    if (!themes) return 'bg-gray-100 text-gray-800';
+    if (themes.includes('LEAN')) return 'bg-blue-100 text-blue-800';
+    if (themes.includes('DIGITAL')) return 'bg-purple-100 text-purple-800';
+    if (themes.includes('GREEN')) return 'bg-green-100 text-green-800';
+    if (themes.includes('RESILIENCE')) return 'bg-amber-100 text-amber-800';
+    return 'bg-gray-100 text-gray-800';
+  };
+
+  const filteredKpis = kpis.filter(kpi =>
+    kpi && kpi.name && kpi.description && kpi.shCode && (
+      kpi.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      kpi.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      kpi.shCode.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  );
+
+  const selectedFactoryName = factories.find(f => f.code === selectedFactory)?.name || selectedFactory;
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">KPI verileri yükleniyor...</p>
+          <p className="mt-4 text-gray-600">Veriler yükleniyor...</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Modern Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <Link href="/" className="flex items-center space-x-2 text-gray-600 hover:text-gray-900">
-                <ArrowLeft className="h-4 w-4" />
-                <span>Dashboard'a Dön</span>
-              </Link>
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <Target className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold text-gray-900">KPI Girişi</h1>
-                  <p className="text-sm text-gray-500">Model Fabrika performans verileri</p>
-                </div>
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <Link 
+              href="/" 
+              className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              <ArrowLeft className="h-5 w-5" />
+              <span>Dashboard'a Dön</span>
+            </Link>
+            <div className="h-6 w-px bg-gray-300"></div>
+            <h1 className="text-2xl font-bold text-gray-900">KPI Girişi</h1>
+          </div>
+          
+          <div className="flex items-center space-x-4">
+            <button className="p-2 text-gray-400 hover:text-gray-600">
+              <span className="sr-only">Bildirimler</span>
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+            </button>
+            <div className="flex items-center space-x-2">
+              <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center">
+                <span className="text-sm font-medium text-white">U</span>
+              </div>
+              <span className="text-sm font-medium text-gray-700">Kullanıcı</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Toplam KPI</p>
+                <p className="text-2xl font-bold text-gray-900">{kpis?.length || 0}</p>
+              </div>
+              <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <TrendingUp className="h-6 w-6 text-blue-600" />
               </div>
             </div>
+          </div>
 
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">Fabrika:</span>
-                <select 
-                  className="text-sm border border-gray-300 rounded-md px-3 py-1 bg-white"
-                  value={selectedFactory}
-                  onChange={(e) => setSelectedFactory(e.target.value)}
-                >
-                  {factories.map(factory => (
-                    <option key={factory.id} value={factory.id}>
-                      {factory.name}
-                    </option>
-                  ))}
-                </select>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Girilen Değer</p>
+                <p className="text-2xl font-bold text-gray-900">{kpiValues.filter(kv => kv.value > 0).length}</p>
               </div>
-
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">Dönem:</span>
-                <select 
-                  className="text-sm border border-gray-300 rounded-md px-3 py-1 bg-white"
-                  value={selectedPeriod}
-                  onChange={(e) => setSelectedPeriod(e.target.value)}
-                >
-                  <option value="2024-Q1">2024 Q1</option>
-                  <option value="2024-Q2">2024 Q2</option>
-                  <option value="2024-Q3">2024 Q3</option>
-                  <option value="2024-Q4">2024 Q4</option>
-                </select>
+              <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
+                <CheckCircle className="h-6 w-6 text-green-600" />
               </div>
+            </div>
+          </div>
 
-              <div className="flex items-center space-x-2">
-                <Button variant="outline" size="sm">
-                  <Bell className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="sm">
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Yenile
-                </Button>
-                <Button variant="outline" size="sm">
-                  <Download className="h-4 w-4 mr-2" />
-                  Dışa Aktar
-                </Button>
-                <Button 
-                  onClick={saveValues}
-                  disabled={saving}
-                  size="sm"
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  {saving ? 'Kaydediliyor...' : 'Kaydet'}
-                </Button>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Tamamlanma</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {kpis?.length ? Math.round((kpiValues.filter(kv => kv.value > 0).length / kpis.length) * 100) : 0}%
+                </p>
               </div>
+              <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                <Factory className="h-6 w-6 text-purple-600" />
+              </div>
+            </div>
+          </div>
 
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-medium">AY</span>
-                </div>
-                <span className="text-sm font-medium text-gray-900">Ahmet Yılmaz</span>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Ortalama Değer</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {kpiValues.length > 0 ? Math.round(kpiValues.reduce((sum, kv) => sum + kv.value, 0) / kpiValues.length) : 0}
+                </p>
+              </div>
+              <div className="h-12 w-12 bg-amber-100 rounded-lg flex items-center justify-center">
+                <Calendar className="h-6 w-6 text-amber-600" />
               </div>
             </div>
           </div>
         </div>
-      </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Page Header */}
-        <div className="mb-8">
-          <div className="flex justify-between items-center">
+        {/* Controls */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Veri Giriş Parametreleri</h2>
+          <p className="text-sm text-gray-600 mb-6">Lütfen KPI girişi yapacağınız fabrika ve dönemi seçin</p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">KPI Veri Girişi</h2>
-              <p className="text-gray-600">
-                {factories.find(f => f.id === selectedFactory)?.name} - {selectedPeriod} dönemi
-              </p>
-            </div>
-            <div className="flex space-x-4">
-              <select className="px-4 py-2 border border-gray-300 rounded-md bg-white">
-                <option>Tüm Temalar</option>
-                <option>Yalın</option>
-                <option>Dijital</option>
-                <option>Yeşil</option>
-                <option>Dirençlilik</option>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Model Fabrika
+              </label>
+              <select
+                value={selectedFactory}
+                onChange={(e) => setSelectedFactory(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                {factories.map((factory) => (
+                  <option key={factory.id} value={factory.code}>
+                    {factory.name} ({factory.code})
+                  </option>
+                ))}
               </select>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Dönem
+              </label>
+              <select
+                value={selectedPeriod}
+                onChange={(e) => setSelectedPeriod(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="2024-Q4">2024 - 4. Çeyrek</option>
+                <option value="2024-Q3">2024 - 3. Çeyrek</option>
+                <option value="2024-Q2">2024 - 2. Çeyrek</option>
+                <option value="2024-Q1">2024 - 1. Çeyrek</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                KPI Ara
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="KPI adı, açıklama veya SH kodu..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* KPI Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card className="relative overflow-hidden">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Toplam KPI</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-3xl font-bold text-gray-900">{kpis.length}</div>
-                  <div className="text-xs text-blue-600 mt-1">Veri giriş listesi</div>
-                </div>
-                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                  <Target className="h-6 w-6 text-blue-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="relative overflow-hidden">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Doldurulmuş</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-3xl font-bold text-gray-900">
-                    {Object.values(values).filter(v => v !== null).length}
-                  </div>
-                  <div className="text-xs text-green-600 mt-1">Veri girildi</div>
-                </div>
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                  <Target className="h-6 w-6 text-green-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="relative overflow-hidden">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Bekleyen</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-3xl font-bold text-gray-900">
-                    {kpis.length - Object.values(values).filter(v => v !== null).length}
-                  </div>
-                  <div className="text-xs text-yellow-600 mt-1">Girilmedi</div>
-                </div>
-                <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
-                  <Target className="h-6 w-6 text-yellow-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="relative overflow-hidden">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Tamamlanma</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-3xl font-bold text-gray-900">
-                    {Math.round((Object.values(values).filter(v => v !== null).length / kpis.length) * 100)}%
-                  </div>
-                  <div className="text-xs text-blue-600 mt-1">Genel ilerleme</div>
-                </div>
-                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                  <TrendingUp className="h-6 w-6 text-blue-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        {/* KPI Card Grid Header */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">
+              KPI Değerleri - {selectedFactoryName} - {selectedPeriod} dönemi
+            </h2>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <Save className="h-4 w-4" />
+              <span>{saving ? 'Kaydediliyor...' : 'Kaydet'}</span>
+            </button>
+          </div>
+          
+          {/* Save Status */}
+          {saveStatus === 'success' && (
+            <div className="mt-3 flex items-center space-x-2 text-green-600">
+              <CheckCircle className="h-4 w-4" />
+              <span className="text-sm">KPI değerleri başarıyla kaydedildi!</span>
+            </div>
+          )}
+          {saveStatus === 'error' && (
+            <div className="mt-3 flex items-center space-x-2 text-red-600">
+              <AlertCircle className="h-4 w-4" />
+              <span className="text-sm">Kaydetme sırasında bir hata oluştu!</span>
+            </div>
+          )}
         </div>
 
-        {/* KPI Data Entry Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>KPI Veri Girişi</CardTitle>
-            <CardDescription>
-              Aşağıdaki tabloda her KPI için değer girebilirsiniz. Önceki dönem ile karşılaştırma otomatik hesaplanır.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">KPI Kodu</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">KPI Adı</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">Tema</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">SH</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">Önceki Dönem</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">Güncel Değer</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">Değişim</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {kpis.map((kpi) => (
-                    <tr key={kpi.id} className="hover:bg-gray-50">
-                      <td className="py-4 px-4">
-                        <span className="font-mono text-sm">{kpi.code}</span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div>
-                          <p className="font-medium text-gray-900">{kpi.name}</p>
-                          <p className="text-sm text-gray-600 line-clamp-2">{kpi.description}</p>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full border ${getThemeColor(kpi.theme)}`}>
-                          {kpi.theme}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className="text-sm text-gray-600">{kpi.strategicTarget.code}</span>
-                      </td>
-                      <td className="py-4 px-4">
-                        {previousValues[kpi.id] ? (
-                          <div className="text-sm">
-                            <span className="font-medium">{previousValues[kpi.id].value}</span>
-                            <div className="text-xs text-gray-500">{previousValues[kpi.id].period}</div>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-400">-</span>
-                        )}
-                      </td>
-                      <td className="py-4 px-4">
-                        <input
-                          type="number"
-                          step="0.01"
-                          className="w-24 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          value={values[kpi.id] || ''}
-                          onChange={(e) => handleValueChange(kpi.id, e.target.value)}
-                          placeholder="0.00"
-                        />
-                      </td>
-                      <td className="py-4 px-4">
-                        {getChangeIndicator(values[kpi.id], previousValues[kpi.id])}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {/* KPI Cards Grid */}
+        {filteredKpis.length === 0 ? (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+            <div className="text-gray-400 mb-4">
+              <Search className="h-16 w-16 mx-auto" />
             </div>
-          </CardContent>
-        </Card>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">KPI Bulunamadı</h3>
+            <p className="text-gray-500">Arama kriterlerinize uygun KPI bulunamadı. Lütfen arama terimini değiştirin.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredKpis.map((kpi, index) => {
+              if (!kpi || !kpi.id) return null;
+              
+              const currentValue = getKPIValue(kpi.id);
+              const previousValue = getPreviousValue(kpi.id);
+              const percentageChange = getPercentageChange(currentValue, previousValue);
+
+              return (
+                <div key={kpi.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+                  {/* Card Header */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <span className="text-blue-600 font-semibold text-sm">#{index + 1}</span>
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-gray-900 text-sm leading-tight">
+                          {kpi.name || 'KPI'}
+                        </h3>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mt-1 ${getThemeColor(kpi.themes || '')}`}>
+                          {kpi.themes || 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-gray-500 mb-1">SH Kodu</div>
+                      <div className="font-semibold text-gray-900 text-sm">{kpi.shCode || 'N/A'}</div>
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  <p className="text-gray-600 text-sm mb-4 overflow-hidden" style={{display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'}}>
+                    {kpi.description || 'Açıklama mevcut değil'}
+                  </p>
+
+                  {/* Values Section */}
+                  <div className="space-y-4">
+                    {/* Previous Value */}
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <div className="text-xs text-gray-500 mb-1">Önceki Dönem</div>
+                        <div className="font-semibold text-gray-700">
+                          {previousValue !== undefined ? previousValue.toLocaleString() : '0'}
+                        </div>
+                      </div>
+                      {percentageChange !== null && (
+                        <div className="flex items-center space-x-1">
+                          {percentageChange >= 0 ? (
+                            <TrendingUp className="h-4 w-4 text-green-500" />
+                          ) : (
+                            <TrendingDown className="h-4 w-4 text-red-500" />
+                          )}
+                          <span className={`text-sm font-medium ${
+                            percentageChange >= 0 ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {percentageChange >= 0 ? '+' : ''}{percentageChange.toFixed(1)}%
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Current Value Input */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Mevcut Dönem Değeri
+                      </label>
+                      <input
+                        type="number"
+                        value={currentValue}
+                        onChange={(e) => handleValueChange(kpi.id, Number(e.target.value))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        step="0.01"
+                        min="0"
+                        placeholder="Değer girin"
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
-  )
+  );
 } 

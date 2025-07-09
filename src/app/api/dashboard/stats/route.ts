@@ -3,16 +3,21 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
-    // Temel istatistikleri çekme
-    const [kpiCount, actionCount, factoryCount, strategicGoalCount] = await Promise.all([
+    const [
+      kpiCount,
+      actionCount,
+      factoryCount,
+      strategicGoalCount,
+    ] = await Promise.all([
       prisma.kpi.count(),
       prisma.action.count(),
       prisma.modelFactory.count(),
-      prisma.strategicGoal.count()
+      prisma.strategicGoal.count(),
     ])
 
-    // Örnek başarı oranı hesaplama (gerçek KPI verilerine göre)
-    const successRate = 78 // Şimdilik sabit, sonra gerçek hesaplama yapılacak
+    // Calculate success rate and trend (mock data for now)
+    const successRate = 75 // 75%
+    const successTrend = 5 // +5%
 
     return NextResponse.json({
       kpiCount,
@@ -20,10 +25,13 @@ export async function GET() {
       factoryCount,
       strategicGoalCount,
       successRate,
-      successTrend: 12 // Önceki döneme göre artış %
+      successTrend,
     })
   } catch (error) {
-    console.error('Dashboard stats error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Error fetching dashboard stats:', error)
+    return NextResponse.json(
+      { error: 'İstatistikler alınırken bir hata oluştu.' },
+      { status: 500 }
+    )
   }
 } 

@@ -31,6 +31,7 @@ export async function GET() {
       let totalKpis = 0
       let kpisWithValues = 0
       let totalScore = 0
+      let previousScore = 0 // Trend hesabı için önceki dönem skoru
 
       sa.strategicTargets.forEach(sh => {
         sh.kpis.forEach(kpi => {
@@ -42,30 +43,38 @@ export async function GET() {
             const targetValue = kpi.targetValue || 100
             const score = Math.min(100, (value / targetValue) * 100)
             totalScore += score
+            
+            // Önceki dönem değeri varsa trend için kullan
+            if (kpi.kpiValues.length > 1) {
+              const prevValue = kpi.kpiValues[1].value
+              const prevScore = Math.min(100, (prevValue / targetValue) * 100)
+              previousScore += prevScore
+            }
           }
         })
       })
 
       const averageScore = kpisWithValues > 0 ? totalScore / kpisWithValues : 0
+      const previousAverageScore = kpisWithValues > 0 ? previousScore / kpisWithValues : 0
+      const trend = averageScore - previousAverageScore
       const completionRate = totalKpis > 0 ? (kpisWithValues / totalKpis) * 100 : 0
 
       return {
+        id: sa.id,
         code: sa.code,
         title: sa.title,
-        totalTargets: sa.strategicTargets.length,
-        totalKpis,
-        kpisWithValues,
-        completionRate: Math.round(completionRate),
-        averageScore: Math.round(averageScore),
-        status: averageScore >= 80 ? 'excellent' : 
-                averageScore >= 60 ? 'good' : 
-                averageScore >= 40 ? 'warning' : 'poor'
+        description: sa.description || '',
+        successRate: Math.round(averageScore),
+        trend: Math.round(trend),
+        status: averageScore >= 80 ? 'mükemmel' : 
+                averageScore >= 60 ? 'iyi' : 
+                averageScore >= 40 ? 'riskli' : 'kritik'
       }
     })
 
     return NextResponse.json(strategicOverview)
   } catch (error) {
     console.error('Strategy overview error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: 'Sunucu hatası' }, { status: 500 })
   }
 } 

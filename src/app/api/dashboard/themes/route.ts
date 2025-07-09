@@ -1,63 +1,54 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+type ThemeCounts = {
+  LEAN: number
+  DIGITAL: number
+  GREEN: number
+  RESILIENCE: number
+}
+
 export async function GET() {
   try {
-    // Tüm KPI'ları ve temalarını çek
+    // Get all KPIs and their themes
     const kpis = await prisma.kpi.findMany({
       select: {
-        id: true,
-        themes: true
-      }
+        themes: true,
+      },
     })
 
-    // Tema sayılarını hesapla
-    const themeCounts = {
+    // Count KPIs by theme
+    const themeCounts: ThemeCounts = {
       LEAN: 0,
       DIGITAL: 0,
       GREEN: 0,
-      RESILIENCE: 0
+      RESILIENCE: 0,
     }
 
-    kpis.forEach(kpi => {
-      if (kpi.themes) {
-        const themes = kpi.themes.split(',')
-        themes.forEach(theme => {
-          const cleanTheme = theme.trim()
-          if (cleanTheme in themeCounts) {
-            themeCounts[cleanTheme as keyof typeof themeCounts]++
-          }
-        })
-      }
+    kpis.forEach((kpi) => {
+      const themes = kpi.themes.split(',')
+      themes.forEach((theme) => {
+        const cleanTheme = theme.trim() as keyof ThemeCounts
+        if (cleanTheme in themeCounts) {
+          themeCounts[cleanTheme]++
+        }
+      })
     })
 
-    const totalKpis = kpis.length
-    const themeDistribution = [
-      {
-        name: 'Yalın',
-        value: totalKpis > 0 ? Math.round((themeCounts.LEAN / totalKpis) * 100) : 0,
-        color: '#3b82f6'
-      },
-      {
-        name: 'Dijital',
-        value: totalKpis > 0 ? Math.round((themeCounts.DIGITAL / totalKpis) * 100) : 0,
-        color: '#10b981'
-      },
-      {
-        name: 'Yeşil',
-        value: totalKpis > 0 ? Math.round((themeCounts.GREEN / totalKpis) * 100) : 0,
-        color: '#f59e0b'
-      },
-      {
-        name: 'Dirençlilik',
-        value: totalKpis > 0 ? Math.round((themeCounts.RESILIENCE / totalKpis) * 100) : 0,
-        color: '#ef4444'
-      }
+    // Format data for frontend
+    const themeData = [
+      { name: 'YALIN', value: themeCounts.LEAN, color: '#3B82F6' },
+      { name: 'DİJİTAL', value: themeCounts.DIGITAL, color: '#10B981' },
+      { name: 'YEŞİL', value: themeCounts.GREEN, color: '#34D399' },
+      { name: 'DİRENÇLİLİK', value: themeCounts.RESILIENCE, color: '#F59E0B' },
     ]
 
-    return NextResponse.json(themeDistribution)
+    return NextResponse.json(themeData)
   } catch (error) {
-    console.error('Theme distribution error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Error fetching theme stats:', error)
+    return NextResponse.json(
+      { error: 'Tema istatistikleri alınırken bir hata oluştu.' },
+      { status: 500 }
+    )
   }
 } 
