@@ -21,7 +21,7 @@ model User {
   email          String    @unique
   name           String?
   hashedPassword String?
-  role           UserRole  @default(MODEL_FACTORY)
+  role           String    @default("MODEL_FACTORY") // MODEL_FACTORY, UPPER_MANAGEMENT, ADMIN
   factoryId      String?
   factory        ModelFactory? @relation(fields: [factoryId], references: [id])
   createdAt      DateTime  @default(now())
@@ -71,12 +71,6 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_tokens")
-}
-
-enum UserRole {
-  MODEL_FACTORY    // Model Fabrika kullanıcısı
-  UPPER_MANAGEMENT // Üst Yönetim kullanıcısı
-  ADMIN           // Sistem yöneticisi
 }
 
 // ============ MODEL FABRİKA YÖNETİMİ ============
@@ -194,7 +188,7 @@ model Action {
   id                  String          @id @default(cuid())
   code                String          @unique  // E1.1.1, E1.1.2, vb.
   description         String
-  priority            ActionPriority  @default(MEDIUM)
+  priority            String          @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
   completionPercent   Float           @default(0)  // 0-100 arası
   phaseId             String?
   phase               Phase?          @relation(fields: [phaseId], references: [id])
@@ -217,7 +211,7 @@ model ActionStep {
   title       String
   description String?
   dueDate     DateTime?
-  status      ActionStepStatus @default(PENDING)
+  status      String           @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED, CANCELLED, DELAYED
   actionId    String
   action      Action           @relation(fields: [actionId], references: [id], onDelete: Cascade)
   createdAt   DateTime         @default(now())
@@ -234,40 +228,10 @@ model ActionKpi {
   kpiId           String
   kpi             Kpi     @relation(fields: [kpiId], references: [id], onDelete: Cascade)
   impactScore     Float?  // Etki katsayısı (0-1 arası)
-  impactCategory  ImpactCategory? // DÜŞÜK, ORTA, YÜKSEK
+  impactCategory  String? // LOW, MEDIUM, HIGH
 
   @@unique([actionId, kpiId])
   @@map("action_kpis")
-}
-
-// ============ ENUM TANIMLARI ============
-
-enum Theme {
-  LEAN        // Yalın
-  DIGITAL     // Dijital
-  GREEN       // Yeşil
-  RESILIENCE  // Dirençlilik
-}
-
-enum ActionPriority {
-  LOW
-  MEDIUM
-  HIGH
-  CRITICAL
-}
-
-enum ActionStepStatus {
-  PENDING     // Beklemede
-  IN_PROGRESS // Devam ediyor
-  COMPLETED   // Tamamlandı
-  CANCELLED   // İptal edildi
-  DELAYED     // Gecikmiş
-}
-
-enum ImpactCategory {
-  LOW    // Düşük
-  MEDIUM // Orta
-  HIGH   // Yüksek
 }
 
 // ============ SİMÜLASYON VE RAPORLAMA ============
@@ -292,9 +256,11 @@ model SimulationItem {
   simulation            Simulation @relation(fields: [simulationId], references: [id], onDelete: Cascade)
   actionId              String
   action                Action     @relation(fields: [actionId], references: [id])
-  assumedCompletion     Float      
-  estimatedImpact       Float?     
-  estimatedImpactCategory ImpactCategory?
+  assumedCompletion     Float      @default(50)  // Varsayılan tamamlanma %
+  estimatedImpact       Float?     @default(0)   // Tahmini etki %
+  estimatedImpactCategory String?  @default("MEDIUM") // LOW, MEDIUM, HIGH
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
 
   @@unique([simulationId, actionId])
   @@map("simulation_items")

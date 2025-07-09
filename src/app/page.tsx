@@ -178,10 +178,6 @@ export default function Home() {
                 <Target className="h-5 w-5" />
                 <span>Etki Simülasyonu</span>
               </Link>
-              <Link href="/analytics" className="sidebar-nav-item">
-                <BarChart3 className="h-5 w-5" />
-                <span>Analitik Panolar</span>
-              </Link>
               <a href="#" className="sidebar-nav-item">
                 <Settings className="h-5 w-5" />
                 <span>Yönetici / Ayarlar</span>

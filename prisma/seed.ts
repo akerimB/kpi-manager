@@ -236,14 +236,14 @@ async function seedActions() {
             description,
             strategicTargetId: strategicTarget.id,
             responsibleUnit,
-            priority: priority as any
+            priority: priority
           },
           create: {
             code: eCode,
             description,
             strategicTargetId: strategicTarget.id,
             responsibleUnit,
-            priority: priority as any
+            priority: priority
           }
         })
       }

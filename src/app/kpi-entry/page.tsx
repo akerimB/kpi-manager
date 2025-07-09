@@ -69,15 +69,27 @@ export default function KPIEntryPage() {
         
         console.log('Got responses:', { kpisStatus: kpisRes.status, factoriesStatus: factoriesRes.status });
         
+        if (!kpisRes.ok || !factoriesRes.ok) {
+          console.error('API request failed:', { kpisStatus: kpisRes.status, factoriesStatus: factoriesRes.status });
+          setLoading(false);
+          return;
+        }
+        
         const kpisData = await kpisRes.json();
         const factoriesData = await factoriesRes.json();
         
-        console.log('Parsed data:', { kpisCount: kpisData.length, factoriesCount: factoriesData.length });
+        console.log('Parsed data:', { 
+          kpisData: kpisData, 
+          kpisIsArray: Array.isArray(kpisData),
+          kpisCount: Array.isArray(kpisData) ? kpisData.length : 'not array',
+          factoriesCount: Array.isArray(factoriesData) ? factoriesData.length : 'not array'
+        });
         
-        setKpis(kpisData);
-        setFactories(factoriesData);
+        // Ensure data is arrays
+        setKpis(Array.isArray(kpisData) ? kpisData : []);
+        setFactories(Array.isArray(factoriesData) ? factoriesData : []);
         
-        if (factoriesData.length > 0) {
+        if (Array.isArray(factoriesData) && factoriesData.length > 0) {
           setSelectedFactory(factoriesData[0].code);
           console.log('Selected factory:', factoriesData[0].code);
         }
@@ -86,6 +98,8 @@ export default function KPIEntryPage() {
         setLoading(false);
       } catch (error) {
         console.error('Error fetching data:', error);
+        setKpis([]);
+        setFactories([]);
         setLoading(false);
       }
     };
@@ -209,8 +223,8 @@ export default function KPIEntryPage() {
     return 'bg-gray-100 text-gray-800';
   };
 
-  const filteredKpis = kpis.filter(kpi =>
-    kpi && kpi.name && kpi.description && kpi.shCode && (
+  const filteredKpis = (Array.isArray(kpis) ? kpis : []).filter(kpi =>
+    kpi && (
       kpi.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       kpi.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       kpi.shCode.toLowerCase().includes(searchTerm.toLowerCase())
@@ -462,7 +476,7 @@ export default function KPIEntryPage() {
                       <div>
                         <div className="text-xs text-gray-500 mb-1">Önceki Dönem</div>
                         <div className="font-semibold text-gray-700">
-                          {previousValue !== undefined ? previousValue.toLocaleString() : '0'}
+                          {previousValue !== undefined && previousValue !== null ? previousValue.toLocaleString() : '0'}
                         </div>
                       </div>
                       {percentageChange !== null && (
