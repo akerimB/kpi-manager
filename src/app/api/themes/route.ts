@@ -1,12 +1,25 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const userRole = searchParams.get('userRole') || 'MODEL_FACTORY'
+    const factoryId = searchParams.get('factoryId')
+
+    // Rol bazlı KPI filtreleme
+    let kpiValueWhere: any = {}
+    
+    if (userRole === 'MODEL_FACTORY' && factoryId) {
+      // Model fabrika kullanıcıları sadece kendi fabrikalarının KPI değerlerini görsün
+      kpiValueWhere.factoryId = factoryId
+    }
+
     // Tema verilerini hesapla
     const kpis = await prisma.kpi.findMany({
       include: {
         kpiValues: {
+          where: kpiValueWhere,
           orderBy: {
             period: 'desc'
           },

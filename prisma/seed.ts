@@ -279,42 +279,95 @@ async function seedModelFactories() {
 async function seedUsers() {
   console.log('👥 Seeding Users...')
   
-  // Admin kullanıcı
-  await prisma.user.upsert({
-    where: { email: 'admin@kpi.gov.tr' },
-    update: {},
-    create: {
-      email: 'admin@kpi.gov.tr',
-      name: 'Sistem Yöneticisi',
-      role: 'ADMIN'
-    }
-  })
-  
-  // Üst yönetim kullanıcısı
-  await prisma.user.upsert({
-    where: { email: 'yonetim@kpi.gov.tr' },
-    update: {},
-    create: {
-      email: 'yonetim@kpi.gov.tr',
-      name: 'Üst Yönetim',
-      role: 'UPPER_MANAGEMENT'
-    }
-  })
-  
-  // Model fabrika kullanıcıları
+  // Fabrikaları al
   const factories = await prisma.modelFactory.findMany()
-  for (const factory of factories) {
-    await prisma.user.upsert({
-      where: { email: `${factory.code.toLowerCase()}@kpi.gov.tr` },
-      update: {},
-      create: {
-        email: `${factory.code.toLowerCase()}@kpi.gov.tr`,
-        name: `${factory.name} Kullanıcısı`,
-        role: 'MODEL_FACTORY',
-        factoryId: factory.id
-      }
-    })
-  }
+  
+  // Kullanıcı örnekleri oluştur
+  console.log('👥 Kullanıcı örnekleri oluşturuluyor...')
+  
+  // Model Fabrika Kullanıcıları
+  const factoryUser1 = await prisma.user.upsert({
+    where: { email: 'fabrika1@example.com' },
+    update: {},
+    create: {
+      email: 'fabrika1@example.com',
+      name: 'Fabrika 1 Kullanıcısı',
+      role: 'MODEL_FACTORY',
+      factoryId: factories[0].id,
+      isActive: true,
+      permissions: JSON.stringify({
+        canViewAllFactories: false,
+        canExportData: false,
+        canManageActions: false,
+        canViewAnalytics: false,
+        canCreateSimulations: false
+      })
+    }
+  })
+
+  const factoryUser2 = await prisma.user.upsert({
+    where: { email: 'fabrika2@example.com' },
+    update: {},
+    create: {
+      email: 'fabrika2@example.com',
+      name: 'Fabrika 2 Kullanıcısı',
+      role: 'MODEL_FACTORY',
+      factoryId: factories[1].id,
+      isActive: true,
+      permissions: JSON.stringify({
+        canViewAllFactories: false,
+        canExportData: false,
+        canManageActions: false,
+        canViewAnalytics: false,
+        canCreateSimulations: false
+      })
+    }
+  })
+
+  // Üst Yönetim Kullanıcısı
+  const upperManagement = await prisma.user.upsert({
+    where: { email: 'yonetim@example.com' },
+    update: {},
+    create: {
+      email: 'yonetim@example.com',
+      name: 'Üst Yönetim Kullanıcısı',
+      role: 'UPPER_MANAGEMENT',
+      factoryId: null,
+      isActive: true,
+      permissions: JSON.stringify({
+        canViewAllFactories: true,
+        canExportData: true,
+        canManageActions: true,
+        canViewAnalytics: true,
+        canCreateSimulations: true
+      })
+    }
+  })
+
+  // Admin Kullanıcısı
+  const admin = await prisma.user.upsert({
+    where: { email: 'admin@example.com' },
+    update: {},
+    create: {
+      email: 'admin@example.com',
+      name: 'Sistem Yöneticisi',
+      role: 'ADMIN',
+      factoryId: null,
+      isActive: true,
+      permissions: JSON.stringify({
+        canViewAllFactories: true,
+        canExportData: true,
+        canManageActions: true,
+        canViewAnalytics: true,
+        canCreateSimulations: true
+      })
+    }
+  })
+
+  console.log(`✅ ${4} kullanıcı oluşturuldu`)
+  console.log(`   - Model Fabrika Kullanıcıları: ${factoryUser1.name}, ${factoryUser2.name}`)
+  console.log(`   - Üst Yönetim: ${upperManagement.name}`)
+  console.log(`   - Admin: ${admin.name}`)
 }
 
 async function seedSampleKpiValues() {

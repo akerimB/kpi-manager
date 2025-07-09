@@ -24,12 +24,21 @@ model User {
   role           String    @default("MODEL_FACTORY") // MODEL_FACTORY, UPPER_MANAGEMENT, ADMIN
   factoryId      String?
   factory        ModelFactory? @relation(fields: [factoryId], references: [id])
+  
+  // Yetki ve erişim kontrolü
+  isActive       Boolean   @default(true)
+  lastLoginAt    DateTime?
+  permissions    String?   // JSON string: {"canViewAllFactories": false, "canExportData": false}
+  
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   // NextAuth.js ile uyumluluk
   accounts       Account[]
   sessions       Session[]
+  
+  // KPI girişleri takibi
+  kpiEntries     KpiValue[] @relation("EnteredBy")
 
   @@map("users")
 }
@@ -159,6 +168,7 @@ model KpiValue {
   factoryId     String
   factory       ModelFactory @relation(fields: [factoryId], references: [id])
   enteredBy     String?      // Kullanıcı ID'si
+  enteredByUser User?        @relation("EnteredBy", fields: [enteredBy], references: [id])
   enteredAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 

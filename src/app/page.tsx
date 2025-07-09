@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { BarChart3, TrendingUp, Target, Users, Calendar, Settings, Clock, CheckCircle, Download, RefreshCw, Bell } from "lucide-react"
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { getCurrentUser, getUserApiParams, switchUserRole } from '@/lib/user-context'
 
 interface DashboardStats {
   kpiCount: number
@@ -43,15 +44,20 @@ export default function Home() {
   const [phases, setPhases] = useState<PhaseData[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
+  
+  // Kullanıcı bağlamını al
+  const userContext = getCurrentUser()
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const apiParams = getUserApiParams(userContext)
+        
         const [statsRes, themesRes, phasesRes, activitiesRes] = await Promise.all([
-          fetch('/api/dashboard/stats'),
-          fetch('/api/dashboard/themes'),
-          fetch('/api/dashboard/phases'),
-          fetch('/api/dashboard/activities')
+          fetch(`/api/dashboard/stats?${apiParams}`),
+          fetch(`/api/dashboard/themes?${apiParams}`),
+          fetch(`/api/dashboard/phases?${apiParams}`),
+          fetch(`/api/dashboard/activities?${apiParams}`)
         ])
 
         const [statsData, themesData, phasesData, activitiesData] = await Promise.all([
@@ -105,44 +111,29 @@ export default function Home() {
             </div>
             
             <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">Ana Tesis - İstanbul</span>
-                <select className="text-sm border border-gray-300 rounded-md px-3 py-1">
-                  <option>Ana Tesis - İstanbul</option>
-                  <option>Fabrika 2 - Ankara</option>
-                  <option>Fabrika 3 - İzmir</option>
-                </select>
+              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <Users className="h-4 w-4" />
+                <span>{userContext.user?.name || 'Kullanıcı'}</span>
+                <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
+                  {userContext.userRole === 'MODEL_FACTORY' ? 'Model Fabrika' :
+                   userContext.userRole === 'UPPER_MANAGEMENT' ? 'Üst Yönetim' : 'Admin'}
+                </span>
+                {/* Test için rol değiştirme butonu */}
+                <button
+                  onClick={() => switchUserRole(userContext.userRole === 'MODEL_FACTORY' ? 'UPPER_MANAGEMENT' : 'MODEL_FACTORY')}
+                  className="text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded transition-colors"
+                  title="Test için rol değiştir"
+                >
+                  🔄 Rol Değiştir
+                </button>
               </div>
-
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">Bu Ay</span>
-                <select className="text-sm border border-gray-300 rounded-md px-3 py-1">
-                  <option>Bu Ay</option>
-                  <option>Geçen Ay</option>
-                  <option>Bu Çeyrek</option>
-                  <option>Bu Yıl</option>
-                </select>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Button variant="outline" size="sm">
-                  <Bell className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="sm">
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Yenile
-                </Button>
-                <Button size="sm">
-                  <Download className="h-4 w-4 mr-2" />
-                  Rapor İndir
-                </Button>
-              </div>
-
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-medium">AY</span>
-                </div>
-                <span className="text-sm font-medium text-gray-900">Ahmet Yılmaz</span>
+              <div className="flex space-x-2">
+                <button className="p-2 text-gray-400 hover:text-gray-600">
+                  <Bell className="h-5 w-5" />
+                </button>
+                <button className="p-2 text-gray-400 hover:text-gray-600">
+                  <Settings className="h-5 w-5" />
+                </button>
               </div>
             </div>
           </div>
@@ -158,30 +149,52 @@ export default function Home() {
                 <BarChart3 className="h-5 w-5" />
                 <span>Dashboard</span>
               </a>
-              <Link href="/kpi-entry" className="sidebar-nav-item">
-                <Target className="h-5 w-5" />
-                <span>KPI Girişi</span>
-              </Link>
-              <Link href="/actions" className="sidebar-nav-item">
-                <Calendar className="h-5 w-5" />
-                <span>Eylem / Faz İzleme</span>
-              </Link>
-              <Link href="/strategy" className="sidebar-nav-item">
-                <TrendingUp className="h-5 w-5" />
-                <span>Strateji İzleme</span>
-              </Link>
+              
+              {/* Model fabrika kullanıcıları için KPI girişi */}
+              {userContext.userRole === 'MODEL_FACTORY' && (
+                <Link href="/kpi-entry" className="sidebar-nav-item">
+                  <Target className="h-5 w-5" />
+                  <span>KPI Girişi</span>
+                </Link>
+              )}
+              
+              {/* Üst yönetim ve admin için eylem yönetimi */}
+              {(userContext.userRole === 'UPPER_MANAGEMENT' || userContext.userRole === 'ADMIN') && (
+                <Link href="/actions" className="sidebar-nav-item">
+                  <Calendar className="h-5 w-5" />
+                  <span>Eylem / Faz İzleme</span>
+                </Link>
+              )}
+              
+              {/* Üst yönetim ve admin için strateji izleme */}
+              {(userContext.userRole === 'UPPER_MANAGEMENT' || userContext.userRole === 'ADMIN') && (
+                <Link href="/strategy" className="sidebar-nav-item">
+                  <TrendingUp className="h-5 w-5" />
+                  <span>Strateji İzleme</span>
+                </Link>
+              )}
+              
+              {/* Tema takibi herkese açık */}
               <Link href="/themes" className="sidebar-nav-item">
                 <Settings className="h-5 w-5" />
                 <span>Tema Takibi</span>
               </Link>
-              <Link href="/simulation" className="sidebar-nav-item">
-                <Target className="h-5 w-5" />
-                <span>Etki Simülasyonu</span>
-              </Link>
-              <a href="#" className="sidebar-nav-item">
-                <Settings className="h-5 w-5" />
-                <span>Yönetici / Ayarlar</span>
-              </a>
+              
+              {/* Etki simülasyonu sadece yetkili kullanıcılar için */}
+              {userContext.permissions.canCreateSimulations && (
+                <Link href="/simulation" className="sidebar-nav-item">
+                  <Target className="h-5 w-5" />
+                  <span>Etki Simülasyonu</span>
+                </Link>
+              )}
+              
+              {/* Admin ayarları sadece admin için */}
+              {userContext.userRole === 'ADMIN' && (
+                <a href="#" className="sidebar-nav-item">
+                  <Settings className="h-5 w-5" />
+                  <span>Yönetici / Ayarlar</span>
+                </a>
+              )}
             </div>
           </nav>
         </aside>

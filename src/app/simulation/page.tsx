@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { ArrowLeft, Zap, Play, Save, AlertTriangle, TrendingUp, BarChart3, Target } from "lucide-react"
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { getCurrentUser, getUserApiParams } from '@/lib/user-context'
 
 interface Action {
   id: string
@@ -52,12 +53,33 @@ export default function SimulationPage() {
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
 
+  // Kullanıcı bağlamını al
+  const userContext = getCurrentUser()
+
+  // Rol kontrolü - sadece simülasyon yetkisi olanlar erişebilir
+  if (!userContext.permissions.canCreateSimulations) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-600 text-6xl mb-4">🚫</div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Erişim Reddedildi</h2>
+          <p className="text-gray-600 mb-4">Etki simülasyonu oluşturma yetkiniz bulunmamaktadır.</p>
+          <Link href="/" className="text-blue-600 hover:text-blue-800">
+            Dashboard'a Dön
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const apiParams = getUserApiParams(userContext)
+        
         const [actionsRes, simulationsRes] = await Promise.all([
-          fetch('/api/actions'),
-          fetch('/api/simulation')
+          fetch(`/api/actions?${apiParams}`),
+          fetch(`/api/simulation?${apiParams}`)
         ])
 
         const [actionsData, simulationsData] = await Promise.all([

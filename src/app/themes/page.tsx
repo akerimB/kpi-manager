@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ArrowLeft, PieChart, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { getCurrentUser, getUserApiParams } from '@/lib/user-context'
 
 interface ThemeData {
   theme: string
@@ -41,10 +42,14 @@ export default function ThemeTracking() {
   const [data, setData] = useState<ThemeResponse | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // Kullanıcı bağlamını al
+  const userContext = getCurrentUser()
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch('/api/themes')
+        const apiParams = getUserApiParams(userContext)
+        const response = await fetch(`/api/themes?${apiParams}`)
         const themeData = await response.json()
         setData(themeData)
       } catch (error) {

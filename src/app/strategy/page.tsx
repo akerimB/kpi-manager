@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { ArrowLeft, Target, TrendingUp, TrendingDown, BarChart3, Download, RefreshCw, Bell, Users, Calendar } from "lucide-react"
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { getCurrentUser, getUserApiParams } from '@/lib/user-context'
 
 interface StrategicGoal {
   id: string
@@ -34,12 +35,33 @@ export default function StrategyPage() {
   const [selectedGoal, setSelectedGoal] = useState<string>('')
   const [loading, setLoading] = useState(true)
 
+  // Kullanıcı bağlamını al
+  const userContext = getCurrentUser()
+
+  // Rol kontrolü - sadece üst yönetim ve admin erişebilir
+  if (userContext.userRole === 'MODEL_FACTORY') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-600 text-6xl mb-4">🚫</div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Erişim Reddedildi</h2>
+          <p className="text-gray-600 mb-4">Bu sayfaya erişim yetkiniz bulunmamaktadır.</p>
+          <Link href="/" className="text-blue-600 hover:text-blue-800">
+            Dashboard'a Dön
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const apiParams = getUserApiParams(userContext)
+        
         const [goalsRes, targetsRes] = await Promise.all([
-          fetch('/api/strategy/overview'),
-          fetch('/api/strategy/targets')
+          fetch(`/api/strategy/overview?${apiParams}`),
+          fetch(`/api/strategy/targets?${apiParams}`)
         ])
 
         const [goalsData, targetsData] = await Promise.all([

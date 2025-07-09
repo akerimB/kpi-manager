@@ -30,6 +30,14 @@ type ActionWithRelations = {
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
+    const userRole = searchParams.get('userRole') || 'MODEL_FACTORY'
+    const userId = searchParams.get('userId')
+    
+    // Rol kontrolü - sadece üst yönetim ve admin erişebilir
+    if (userRole === 'MODEL_FACTORY') {
+      return NextResponse.json({ error: 'Bu API\'ye erişim yetkiniz bulunmamaktadır' }, { status: 403 })
+    }
+    
     const phaseId = searchParams.get('phase')
     const shCode = searchParams.get('sh')
     const priority = searchParams.get('priority')

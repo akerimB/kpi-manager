@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Save, TrendingUp, TrendingDown, Calendar, Factory, Search, AlertCircle, CheckCircle } from 'lucide-react';
+import { getCurrentUser, getUserApiParams } from '@/lib/user-context';
 
 interface KPI {
   id: string;
@@ -59,53 +60,68 @@ export default function KPIEntryPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        console.log('Starting data fetch...');
-        const baseUrl = window.location.origin;
+        console.log('Starting data fetch...')
+        const baseUrl = window.location.origin
+        
+        // Gerçek kullanıcı bağlamını kullan
+        const userContext = getCurrentUser()
+        const apiParams = getUserApiParams(userContext)
         
         const [kpisRes, factoriesRes] = await Promise.all([
-          fetch(`${baseUrl}/api/kpis`),
+          fetch(`${baseUrl}/api/kpis?${apiParams}`),
           fetch(`${baseUrl}/api/factories`)
-        ]);
+        ])
         
-        console.log('Got responses:', { kpisStatus: kpisRes.status, factoriesStatus: factoriesRes.status });
+        console.log('Got responses:', { kpisStatus: kpisRes.status, factoriesStatus: factoriesRes.status })
         
         if (!kpisRes.ok || !factoriesRes.ok) {
-          console.error('API request failed:', { kpisStatus: kpisRes.status, factoriesStatus: factoriesRes.status });
-          setLoading(false);
-          return;
+          console.error('API request failed:', { kpisStatus: kpisRes.status, factoriesStatus: factoriesRes.status })
+          setLoading(false)
+          return
         }
         
-        const kpisData = await kpisRes.json();
-        const factoriesData = await factoriesRes.json();
+        const kpisData = await kpisRes.json()
+        const factoriesData = await factoriesRes.json()
         
-        console.log('Parsed data:', { 
-          kpisData: kpisData, 
-          kpisIsArray: Array.isArray(kpisData),
-          kpisCount: Array.isArray(kpisData) ? kpisData.length : 'not array',
-          factoriesCount: Array.isArray(factoriesData) ? factoriesData.length : 'not array'
-        });
+        console.log('Fetched data:', { kpisCount: kpisData.length, factoriesCount: factoriesData.length })
         
-        // Ensure data is arrays
-        setKpis(Array.isArray(kpisData) ? kpisData : []);
-        setFactories(Array.isArray(factoriesData) ? factoriesData : []);
-        
-        if (Array.isArray(factoriesData) && factoriesData.length > 0) {
-          setSelectedFactory(factoriesData[0].code);
-          console.log('Selected factory:', factoriesData[0].code);
+        // Ensure kpisData is an array
+        if (Array.isArray(kpisData)) {
+          setKpis(kpisData)
+        } else {
+          console.error('KPIs data is not an array:', kpisData)
+          setKpis([])
         }
         
-        console.log('Setting loading to false');
-        setLoading(false);
+        // Ensure factoriesData is an array
+        if (Array.isArray(factoriesData)) {
+          setFactories(factoriesData)
+          
+          // Model fabrika kullanıcısı için kendi fabrikasını seç
+          if (userContext.userRole === 'MODEL_FACTORY' && userContext.factoryId) {
+            const userFactory = factoriesData.find(f => f.id === userContext.factoryId)
+            if (userFactory) {
+              setSelectedFactory(userFactory.code)
+            }
+          } else if (factoriesData.length > 0) {
+            setSelectedFactory(factoriesData[0].code)
+          }
+        } else {
+          console.error('Factories data is not an array:', factoriesData)
+          setFactories([])
+        }
+        
       } catch (error) {
-        console.error('Error fetching data:', error);
-        setKpis([]);
-        setFactories([]);
-        setLoading(false);
+        console.error('Error fetching data:', error)
+        setKpis([])
+        setFactories([])
+      } finally {
+        setLoading(false)
       }
-    };
+    }
 
-    fetchData();
-  }, []);
+    fetchData()
+  }, [])
 
   const fetchKPIValues = useCallback(async () => {
     try {
