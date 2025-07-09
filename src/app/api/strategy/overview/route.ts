@@ -1,8 +1,23 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const factoryId = searchParams.get('factory')
+    const period = searchParams.get('period') || '2024-Q4'
+    const userRole = searchParams.get('userRole') || 'UPPER_MANAGEMENT'
+
+    // KPI değerleri için filtre oluştur
+    const kpiValueFilter: any = {
+      period: period
+    }
+
+    // Fabrika filtresi ekle
+    if (factoryId) {
+      kpiValueFilter.factoryId = factoryId
+    }
+
     // Tüm stratejik amaçları getir
     const strategicGoals = await prisma.strategicGoal.findMany({
       include: {
@@ -11,10 +26,11 @@ export async function GET() {
             kpis: {
               include: {
                 kpiValues: {
+                  where: kpiValueFilter,
                   orderBy: {
                     period: 'desc'
                   },
-                  take: 1 // En son değer
+                  take: 2 // Mevcut ve önceki dönem için
                 }
               }
             }
@@ -66,9 +82,9 @@ export async function GET() {
         description: sa.description || '',
         successRate: Math.round(averageScore),
         trend: Math.round(trend),
-        status: averageScore >= 80 ? 'mükemmel' : 
-                averageScore >= 60 ? 'iyi' : 
-                averageScore >= 40 ? 'riskli' : 'kritik'
+        status: averageScore >= 80 ? 'excellent' : 
+                averageScore >= 60 ? 'good' : 
+                averageScore >= 40 ? 'at-risk' : 'critical'
       }
     })
 

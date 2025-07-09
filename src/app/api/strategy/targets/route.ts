@@ -5,6 +5,9 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const saCode = searchParams.get('sa')
+    const factoryId = searchParams.get('factory')
+    const period = searchParams.get('period') || '2024-Q4'
+    const userRole = searchParams.get('userRole') || 'UPPER_MANAGEMENT'
 
     let whereCondition = {}
     if (saCode) {
@@ -15,6 +18,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // KPI değerleri için filtre oluştur
+    const kpiValueFilter: any = {
+      period: period
+    }
+
+    // Fabrika filtresi ekle
+    if (factoryId) {
+      kpiValueFilter.factoryId = factoryId
+    }
+
     const strategicTargets = await prisma.strategicTarget.findMany({
       where: whereCondition,
       include: {
@@ -22,6 +35,7 @@ export async function GET(request: NextRequest) {
         kpis: {
           include: {
             kpiValues: {
+              where: kpiValueFilter,
               orderBy: {
                 period: 'desc'
               },

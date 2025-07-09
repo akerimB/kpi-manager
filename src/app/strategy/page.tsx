@@ -32,7 +32,10 @@ interface StrategicTarget {
 export default function StrategyPage() {
   const [strategicGoals, setStrategicGoals] = useState<StrategicGoal[]>([])
   const [strategicTargets, setStrategicTargets] = useState<StrategicTarget[]>([])
+  const [factories, setFactories] = useState<{id: string, name: string, code: string}[]>([])
   const [selectedGoal, setSelectedGoal] = useState<string>('')
+  const [selectedFactory, setSelectedFactory] = useState<string>('')
+  const [selectedPeriod, setSelectedPeriod] = useState<string>('2024-Q4')
   const [loading, setLoading] = useState(true)
 
   // Kullanıcı bağlamını al
@@ -69,21 +72,29 @@ export default function StrategyPage() {
       try {
         const apiParams = getUserApiParams(userContext)
         
-        const [goalsRes, targetsRes] = await Promise.all([
-          fetch(`/api/strategy/overview?${apiParams}`),
-          fetch(`/api/strategy/targets?${apiParams}`)
+        const [goalsRes, targetsRes, factoriesRes] = await Promise.all([
+          fetch(`/api/strategy/overview?${apiParams}&period=${selectedPeriod}&factory=${selectedFactory}`),
+          fetch(`/api/strategy/targets?${apiParams}&period=${selectedPeriod}&factory=${selectedFactory}`),
+          fetch(`/api/factories?${apiParams}`)
         ])
 
-        const [goalsData, targetsData] = await Promise.all([
+        const [goalsData, targetsData, factoriesData] = await Promise.all([
           goalsRes.json(),
-          targetsRes.json()
+          targetsRes.json(),
+          factoriesRes.json()
         ])
 
         setStrategicGoals(goalsData)
         setStrategicTargets(targetsData)
+        setFactories(factoriesData)
         
         if (goalsData.length > 0) {
           setSelectedGoal(goalsData[0].id)
+        }
+
+        // İlk fabrikayı seç
+        if (factoriesData.length > 0 && !selectedFactory) {
+          setSelectedFactory(factoriesData[0].id)
         }
       } catch (error) {
         console.error('Error fetching strategy data:', error)
@@ -93,7 +104,54 @@ export default function StrategyPage() {
     }
 
     fetchData()
-  }, [userContext])
+  }, [userContext, selectedPeriod, selectedFactory])
+
+  const refreshData = async () => {
+    if (!userContext) return
+    
+    setLoading(true)
+    try {
+      const apiParams = getUserApiParams(userContext)
+      
+      const [goalsRes, targetsRes] = await Promise.all([
+        fetch(`/api/strategy/overview?${apiParams}&period=${selectedPeriod}&factory=${selectedFactory}`),
+        fetch(`/api/strategy/targets?${apiParams}&period=${selectedPeriod}&factory=${selectedFactory}`)
+      ])
+
+      const [goalsData, targetsData] = await Promise.all([
+        goalsRes.json(),
+        targetsRes.json()
+      ])
+
+      setStrategicGoals(goalsData)
+      setStrategicTargets(targetsData)
+    } catch (error) {
+      console.error('Error refreshing data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const downloadStrategyReport = () => {
+    const selectedFactoryName = factories.find(f => f.id === selectedFactory)?.name || 'Tüm Fabrikalar'
+    const reportData = {
+      period: selectedPeriod,
+      factory: selectedFactoryName,
+      generatedAt: new Date().toISOString(),
+      strategicGoals: strategicGoals,
+      strategicTargets: filteredTargets
+    }
+    
+    const dataStr = JSON.stringify(reportData, null, 2)
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr)
+    
+    const exportFileDefaultName = `strateji-raporu-${selectedPeriod}-${selectedFactoryName.replace(/\s+/g, '-')}.json`
+    
+    const linkElement = document.createElement('a')
+    linkElement.setAttribute('href', dataUri)
+    linkElement.setAttribute('download', exportFileDefaultName)
+    linkElement.click()
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -164,21 +222,29 @@ export default function StrategyPage() {
 
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">Ana Tesis - İstanbul</span>
-                <select className="text-sm border border-gray-300 rounded-md px-3 py-1 bg-white">
-                  <option>Ana Tesis - İstanbul</option>
-                  <option>Fabrika 2 - Ankara</option>
-                  <option>Fabrika 3 - İzmir</option>
+                <span className="text-sm text-gray-600">Fabrika</span>
+                <select 
+                  className="text-sm border border-gray-300 rounded-md px-3 py-1 bg-white"
+                  value={selectedFactory}
+                  onChange={(e) => setSelectedFactory(e.target.value)}
+                >
+                  {factories.map(factory => (
+                    <option key={factory.id} value={factory.id}>{factory.name}</option>
+                  ))}
                 </select>
               </div>
 
               <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">Bu Çeyrek</span>
-                <select className="text-sm border border-gray-300 rounded-md px-3 py-1 bg-white">
-                  <option>Bu Çeyrek</option>
-                  <option>Geçen Çeyrek</option>
-                  <option>Bu Yıl</option>
-                  <option>Geçen Yıl</option>
+                <span className="text-sm text-gray-600">Dönem</span>
+                <select 
+                  className="text-sm border border-gray-300 rounded-md px-3 py-1 bg-white"
+                  value={selectedPeriod}
+                  onChange={(e) => setSelectedPeriod(e.target.value)}
+                >
+                  <option value="2024-Q4">Bu Çeyrek (2024-Q4)</option>
+                  <option value="2024-Q3">Geçen Çeyrek (2024-Q3)</option>
+                  <option value="2024">Bu Yıl (2024)</option>
+                  <option value="2023">Geçen Yıl (2023)</option>
                 </select>
               </div>
 
@@ -186,11 +252,11 @@ export default function StrategyPage() {
                 <Button variant="outline" size="sm">
                   <Bell className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={refreshData}>
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Yenile
                 </Button>
-                <Button size="sm">
+                <Button size="sm" onClick={() => downloadStrategyReport()}>
                   <Download className="h-4 w-4 mr-2" />
                   Strateji Raporu
                 </Button>
@@ -198,9 +264,13 @@ export default function StrategyPage() {
 
               <div className="flex items-center space-x-3">
                 <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-medium">AY</span>
+                  <span className="text-white text-sm font-medium">
+                    {userContext?.user?.name?.split(' ').map(n => n[0]).join('') || 'U'}
+                  </span>
                 </div>
-                <span className="text-sm font-medium text-gray-900">Ahmet Yılmaz</span>
+                <span className="text-sm font-medium text-gray-900">
+                  {userContext?.user?.name || 'Kullanıcı'}
+                </span>
               </div>
             </div>
           </div>
@@ -216,12 +286,17 @@ export default function StrategyPage() {
               <p className="text-gray-600">Stratejik amaç ve hedeflerin KPI bazlı performans analizi</p>
             </div>
             <div className="flex space-x-4">
-              <select className="px-4 py-2 border border-gray-300 rounded-md bg-white">
-                <option>Tüm Stratejik Amaçlar</option>
-                <option>SA01 - Operasyonel Mükemmellik</option>
-                <option>SA02 - Dijital Dönüşüm</option>
-                <option>SA03 - Sürdürülebilirlik</option>
-                <option>SA04 - İnovasyon</option>
+              <select 
+                className="px-4 py-2 border border-gray-300 rounded-md bg-white"
+                value={selectedGoal}
+                onChange={(e) => setSelectedGoal(e.target.value)}
+              >
+                <option value="">Tüm Stratejik Amaçlar</option>
+                {strategicGoals.map(goal => (
+                  <option key={goal.id} value={goal.id}>
+                    {goal.code} - {goal.title}
+                  </option>
+                ))}
               </select>
             </div>
           </div>

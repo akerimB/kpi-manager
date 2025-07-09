@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { BarChart3, TrendingUp, Target, Users, Calendar, Settings, Clock, CheckCircle, Download, RefreshCw, Bell, LogOut } from "lucide-react"
+import { BarChart3, TrendingUp, TrendingDown, Target, Users, Calendar, Settings, Clock, CheckCircle, Download, RefreshCw, Bell, LogOut } from "lucide-react"
 import { useEffect, useState, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { getCurrentUser, getUserApiParams, logout } from '@/lib/user-context'
@@ -14,6 +14,15 @@ interface DashboardStats {
   strategicGoalCount: number
   successRate: number
   successTrend: number
+  trends: {
+    kpiTrend: number
+    actionTrend: number
+    factoryTrend: number
+    recentActivity: {
+      kpiEntries: number
+      actionUpdates: number
+    }
+  }
 }
 
 interface ThemeData {
@@ -258,9 +267,12 @@ export default function Home() {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-3xl font-bold text-gray-900">{stats?.kpiCount || 0}</div>
-                    <div className="flex items-center text-sm text-green-600 mt-1">
-                      <TrendingUp className="h-4 w-4 mr-1" />
-                      +8
+                    <div className={`flex items-center text-sm mt-1 ${(stats?.trends?.kpiTrend || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {(stats?.trends?.kpiTrend || 0) >= 0 ? 
+                        <TrendingUp className="h-4 w-4 mr-1" /> : 
+                        <TrendingDown className="h-4 w-4 mr-1" />
+                      }
+                      {(stats?.trends?.kpiTrend || 0) >= 0 ? '+' : ''}{stats?.trends?.kpiTrend || 0}
                     </div>
                   </div>
                   <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
@@ -281,9 +293,12 @@ export default function Home() {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-3xl font-bold text-gray-900">{stats?.actionCount || 0}</div>
-                    <div className="flex items-center text-sm text-green-600 mt-1">
-                      <TrendingUp className="h-4 w-4 mr-1" />
-                      +3
+                    <div className={`flex items-center text-sm mt-1 ${(stats?.trends?.actionTrend || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {(stats?.trends?.actionTrend || 0) >= 0 ? 
+                        <TrendingUp className="h-4 w-4 mr-1" /> : 
+                        <TrendingDown className="h-4 w-4 mr-1" />
+                      }
+                      {(stats?.trends?.actionTrend || 0) >= 0 ? '+' : ''}{stats?.trends?.actionTrend || 0}
                     </div>
                   </div>
                   <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
@@ -304,9 +319,12 @@ export default function Home() {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-3xl font-bold text-gray-900">{stats?.factoryCount || 0}</div>
-                    <div className="flex items-center text-sm text-green-600 mt-1">
-                      <TrendingUp className="h-4 w-4 mr-1" />
-                      +2
+                    <div className={`flex items-center text-sm mt-1 ${(stats?.trends?.factoryTrend || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {(stats?.trends?.factoryTrend || 0) >= 0 ? 
+                        <TrendingUp className="h-4 w-4 mr-1" /> : 
+                        <TrendingDown className="h-4 w-4 mr-1" />
+                      }
+                      {(stats?.trends?.factoryTrend || 0) >= 0 ? '+' : ''}{stats?.trends?.factoryTrend || 0}
                     </div>
                   </div>
                   <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
@@ -327,9 +345,12 @@ export default function Home() {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-3xl font-bold text-gray-900">{stats?.successRate || 0}%</div>
-                    <div className="flex items-center text-sm text-green-600 mt-1">
-                      <TrendingUp className="h-4 w-4 mr-1" />
-                      +{stats?.successTrend || 0}%
+                    <div className={`flex items-center text-sm mt-1 ${(stats?.successTrend || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {(stats?.successTrend || 0) >= 0 ? 
+                        <TrendingUp className="h-4 w-4 mr-1" /> : 
+                        <TrendingDown className="h-4 w-4 mr-1" />
+                      }
+                      {(stats?.successTrend || 0) >= 0 ? '+' : ''}{stats?.successTrend || 0}%
                     </div>
                   </div>
                   <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
