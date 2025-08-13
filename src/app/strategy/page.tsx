@@ -199,85 +199,7 @@ export default function StrategyPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Modern Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <Link href="/" className="flex items-center space-x-2 text-gray-600 hover:text-gray-900">
-                <ArrowLeft className="h-4 w-4" />
-                <span>Dashboard'a Dön</span>
-              </Link>
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <Target className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold text-gray-900">Strateji İzleme</h1>
-                  <p className="text-sm text-gray-500">SA → SH → KPI hiyerarşik analiz</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">Fabrika</span>
-                <select 
-                  className="text-sm border border-gray-300 rounded-md px-3 py-1 bg-white"
-                  value={selectedFactory}
-                  onChange={(e) => setSelectedFactory(e.target.value)}
-                >
-                  {factories.map(factory => (
-                    <option key={factory.id} value={factory.id}>{factory.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">Dönem</span>
-                <select 
-                  className="text-sm border border-gray-300 rounded-md px-3 py-1 bg-white"
-                  value={selectedPeriod}
-                  onChange={(e) => setSelectedPeriod(e.target.value)}
-                >
-                  <option value="2024-Q4">Bu Çeyrek (2024-Q4)</option>
-                  <option value="2024-Q3">Geçen Çeyrek (2024-Q3)</option>
-                  <option value="2024">Bu Yıl (2024)</option>
-                  <option value="2023">Geçen Yıl (2023)</option>
-                </select>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Button variant="outline" size="sm">
-                  <Bell className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="sm" onClick={refreshData}>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Yenile
-                </Button>
-                <Button size="sm" onClick={() => downloadStrategyReport()}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Strateji Raporu
-                </Button>
-              </div>
-
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-medium">
-                    {userContext?.user?.name?.split(' ').map(n => n[0]).join('') || 'U'}
-                  </span>
-                </div>
-                <span className="text-sm font-medium text-gray-900">
-                  {userContext?.user?.name || 'Kullanıcı'}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Page Header */}
         <div className="mb-8">
           <div className="flex justify-between items-center">
@@ -465,7 +387,6 @@ export default function StrategyPage() {
             )}
           </CardContent>
         </Card>
-      </div>
     </div>
   )
 } 

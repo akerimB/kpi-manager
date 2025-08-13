@@ -4,6 +4,8 @@ import { getCurrentUser, getUserApiParams } from '@/lib/user-context';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Save, TrendingUp, TrendingDown, Calendar, Factory, Search, AlertCircle, CheckCircle } from 'lucide-react';
+import { Upload, Paperclip, Trash2 } from 'lucide-react';
+import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, EVIDENCE_CATEGORIES } from '@/lib/evidence-config'
 
 interface KPI {
   id: string;
@@ -45,6 +47,20 @@ interface KPIValue {
   previousValue?: number;
 }
 
+interface KpiEvidence {
+  id: string;
+  kpiId: string;
+  factoryId: string;
+  period: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  fileUrl: string;
+  description?: string;
+  category?: string;
+  uploadedAt: string;
+}
+
 export default function KPIEntryPage() {
   const [kpis, setKpis] = useState<KPI[]>([]);
   const [factories, setFactories] = useState<Factory[]>([]);
@@ -55,6 +71,10 @@ export default function KPIEntryPage() {
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [evidences, setEvidences] = useState<Record<string, KpiEvidence[]>>({});
+  const [uploading, setUploading] = useState(false);
+  const [uploadItems, setUploadItems] = useState<Array<{ id: string; name: string; progress: number }>>([])
+  const [evidenceFilters, setEvidenceFilters] = useState<Record<string, string>>({})
 
   // Kullanıcı bağlamını al
   const userContext = getCurrentUser()
@@ -154,6 +174,19 @@ export default function KPIEntryPage() {
       const response = await fetch(`${baseUrl}/api/kpi-values?factory=${selectedFactoryData.id}&period=${selectedPeriod}`);
       const data = await response.json();
       setKpiValues(Array.isArray(data) ? data : []);
+
+      // Kanıtları da çek
+      const evidencesByKpi: Record<string, KpiEvidence[]> = {};
+      for (const kv of Array.isArray(data) ? data : []) {
+        try {
+          const res = await fetch(`${baseUrl}/api/kpi-evidence?kpiId=${kv.kpiId}&factoryId=${selectedFactoryData.id}&period=${selectedPeriod}`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken')}` }
+          });
+          const evs = await res.json();
+          evidencesByKpi[kv.kpiId] = Array.isArray(evs) ? evs : [];
+        } catch {}
+      }
+      setEvidences(evidencesByKpi);
     } catch (error) {
       console.error('Error fetching KPI values:', error);
       setKpiValues([]);
@@ -232,6 +265,103 @@ export default function KPIEntryPage() {
     }
   };
 
+  const handleEvidenceUpload = async (kpiId: string, file: File, description?: string, category?: string) => {
+    if (!selectedFactory || factories.length === 0) return;
+    const selectedFactoryData = factories.find(f => f.code === selectedFactory);
+    if (!selectedFactoryData) return;
+
+    // client-side tip/boyut doğrulama
+    const allowed = new Set(ALLOWED_MIME_TYPES)
+    if (!allowed.has(file.type) || file.size > MAX_FILE_SIZE_BYTES) {
+      alert('İzin verilmeyen dosya tipi veya boyutu büyük (max 25MB)')
+      return
+    }
+
+    setUploading(true);
+    try {
+      // 1) Presign al
+      const presignRes = await fetch('/api/kpi-evidence/presign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('authToken')}` },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileType: file.type || 'application/octet-stream',
+          kpiId,
+          period: selectedPeriod,
+          factoryId: selectedFactoryData.id
+        })
+      })
+      if (!presignRes.ok) throw new Error('Presign alınamadı')
+      const { uploadUrl, publicUrl, key } = await presignRes.json()
+
+      // 2) PUT ile S3'e yükle (progress)
+      const itemId = `${kpiId}-${Date.now()}-${file.name}`
+      setUploadItems(prev => [...prev, { id: itemId, name: file.name, progress: 0 }])
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const pct = Math.round((e.loaded / e.total) * 100)
+            setUploadItems(prev => prev.map(it => it.id === itemId ? { ...it, progress: pct } : it))
+          }
+        }
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            setUploadItems(prev => prev.filter(it => it.id !== itemId))
+            resolve()
+          } else {
+            reject(new Error('S3 yükleme başarısız'))
+          }
+        }
+        xhr.onerror = () => reject(new Error('S3 yükleme hatası'))
+        xhr.open('PUT', uploadUrl)
+        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
+        xhr.send(file)
+      })
+
+      // 3) Metadata kaydet
+      const res = await fetch('/api/kpi-evidence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('authToken')}` },
+        body: JSON.stringify({
+          kpiId,
+          factoryId: selectedFactoryData.id,
+          period: selectedPeriod,
+          fileName: file.name,
+          fileType: file.type || 'application/octet-stream',
+          fileSize: file.size,
+          fileUrl: publicUrl,
+          description: description || '',
+          category: category || 'OTHER',
+          uploadedBy: userContext?.user?.id,
+          fileKey: key,
+        })
+      })
+
+      if (res.ok) {
+        const created: KpiEvidence = await res.json();
+        setEvidences(prev => ({
+          ...prev,
+          [kpiId]: [created, ...(prev[kpiId] || [])]
+        }))
+      }
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const handleEvidenceDelete = async (kpiId: string, evidenceId: string) => {
+    try {
+      const res = await fetch(`/api/kpi-evidence?id=${evidenceId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken')}` } });
+      if (res.ok) {
+        setEvidences(prev => ({
+          ...prev,
+          [kpiId]: (prev[kpiId] || []).filter(e => e.id !== evidenceId)
+        }))
+      }
+    } catch {}
+  }
+
   const getKPIValue = (kpiId: string) => {
     const kpiValue = kpiValues.find(kv => kv.kpiId === kpiId);
     return kpiValue?.value || 0;
@@ -278,41 +408,7 @@ export default function KPIEntryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Link 
-              href="/" 
-              className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <ArrowLeft className="h-5 w-5" />
-              <span>Dashboard'a Dön</span>
-            </Link>
-            <div className="h-6 w-px bg-gray-300"></div>
-            <h1 className="text-2xl font-bold text-gray-900">KPI Girişi</h1>
-          </div>
-          
-          <div className="flex items-center space-x-4">
-            <button className="p-2 text-gray-400 hover:text-gray-600">
-              <span className="sr-only">Bildirimler</span>
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-            </button>
-            <div className="flex items-center space-x-2">
-              <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center">
-                <span className="text-sm font-medium text-white">U</span>
-              </div>
-              <span className="text-sm font-medium text-gray-700">Kullanıcı</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+    <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -503,7 +599,7 @@ export default function KPIEntryPage() {
                   </p>
 
                   {/* Values Section */}
-                  <div className="space-y-4">
+                <div className="space-y-6">
                     {/* Previous Value */}
                     <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div>
@@ -543,13 +639,154 @@ export default function KPIEntryPage() {
                         placeholder="Değer girin"
                       />
                     </div>
+
+                    {/* Evidence Upload */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Kanıt Ekle</label>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 text-sm">
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">Kategori</label>
+                          <select
+                            className="w-full p-2 border border-gray-300 rounded-md"
+                            onChange={(e) => {
+                              // kategori seçiminde upload sırasında kullanılacak; hızlı çözüm için data- attribute ile inputta saklanabilir
+                              (window as any).__evidenceCategory = e.target.value
+                            }}
+                          >
+                            {EVIDENCE_CATEGORIES.map(c => (
+                              <option key={c} value={c}>{c}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-xs text-gray-600 mb-1">Açıklama</label>
+                          <input
+                            type="text"
+                            className="w-full p-2 border border-gray-300 rounded-md"
+                            placeholder="Kısa açıklama"
+                            onChange={(e) => { (window as any).__evidenceDescription = e.target.value }}
+                          />
+                        </div>
+                      </div>
+                      <div
+                        className="border-2 border-dashed rounded-lg p-4 text-center hover:bg-gray-50 cursor-pointer"
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault()
+                          const files = Array.from(e.dataTransfer.files || [])
+                          const valid = files.filter(f => f.size <= 25 * 1024 * 1024) // 25MB limit
+                          valid.forEach(file => handleEvidenceUpload(kpi.id, file, (window as any).__evidenceDescription, (window as any).__evidenceCategory))
+                        }}
+                      >
+                        <div className="flex items-center justify-center">
+                          <label className="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700">
+                            <Upload className="h-4 w-4 mr-2" /> Dosya Seç
+                            <input
+                              type="file"
+                              multiple
+                              className="hidden"
+                              onChange={(e) => {
+                                const files = Array.from(e.target.files || [])
+                                const valid = files.filter(f => f.size <= 25 * 1024 * 1024)
+                                valid.forEach(file => handleEvidenceUpload(kpi.id, file, (window as any).__evidenceDescription, (window as any).__evidenceCategory))
+                              }}
+                            />
+                          </label>
+                        </div>
+                        <p className="mt-2 text-xs text-gray-500">PDF, görüntü, Excel, Word vb. (maks 25MB/dosya)</p>
+                      </div>
+                      {uploading && uploadItems.length > 0 && (
+                        <div className="mt-2 space-y-2">
+                          {uploadItems.map(item => (
+                            <div key={item.id}>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div className="bg-blue-600 h-2 rounded-full transition-all" style={{ width: `${item.progress}%` }}></div>
+                              </div>
+                              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>{item.name}</span>
+                                <span>{item.progress}%</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Evidence List */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Kanıtlar</label>
+                      <div className="mb-2">
+                        <select
+                          className="w-48 p-2 border border-gray-300 rounded-md text-sm"
+                          value={evidenceFilters[kpi.id] || ''}
+                          onChange={(e) => setEvidenceFilters(prev => ({ ...prev, [kpi.id]: e.target.value }))}
+                        >
+                          <option value="">Tümü</option>
+                          {EVIDENCE_CATEGORIES.map(c => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        {(evidences[kpi.id] || []).length === 0 ? (
+                          <div className="text-xs text-gray-500">Henüz kanıt eklenmemiş</div>
+                        ) : (
+                          (evidences[kpi.id] || [])
+                            .filter(ev => {
+                              const f = evidenceFilters[kpi.id]
+                              if (!f) return true
+                              return (ev.category || 'OTHER') === f
+                            })
+                            .map(ev => (
+                            <div key={ev.id} className="flex items-center justify-between p-2 border rounded-md">
+                              <div className="flex items-center space-x-2">
+                                <Paperclip className="h-4 w-4 text-gray-500" />
+                                <button
+                                  className="text-sm text-blue-600 hover:underline"
+                                  onClick={async () => {
+                                    try {
+                                      if (ev.fileKey) {
+                                        const res = await fetch(`/api/kpi-evidence/get-url?key=${encodeURIComponent(ev.fileKey)}`, {
+                                          headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken')}` }
+                                        })
+                                        const data = await res.json()
+                                        if (data.url) window.open(data.url, '_blank')
+                                      } else {
+                                        window.open(ev.fileUrl, '_blank')
+                                      }
+                                    } catch {}
+                                  }}
+                                >
+                                  {ev.fileName}
+                                </button>
+                                <span className="text-xs text-gray-400">{Math.round(ev.fileSize / 1024)} KB</span>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                                  (ev.category || 'OTHER') === 'REPORT' ? 'bg-blue-100 text-blue-700' :
+                                  (ev.category || 'OTHER') === 'IMAGE' ? 'bg-green-100 text-green-700' :
+                                  (ev.category || 'OTHER') === 'CERTIFICATE' ? 'bg-purple-100 text-purple-700' :
+                                  (ev.category || 'OTHER') === 'LOG' ? 'bg-amber-100 text-amber-700' :
+                                  (ev.category || 'OTHER') === 'EMAIL' ? 'bg-teal-100 text-teal-700' :
+                                  'bg-gray-100 text-gray-700'
+                                }`}>{ev.category || 'OTHER'}</span>
+                              </div>
+                              <button
+                                className="text-red-600 hover:text-red-700"
+                                onClick={() => handleEvidenceDelete(kpi.id, ev.id)}
+                                title="Sil"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               );
             })}
           </div>
         )}
-      </div>
     </div>
   );
 } 

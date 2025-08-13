@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
     // Frontend'in beklediği formata dönüştür
     const enrichedActions = actions.map((action: any) => {
       const totalSteps = action.actionSteps.length
-      const completedSteps = action.actionSteps.filter(step => step.status === 'COMPLETED').length
+      const completedSteps = action.actionSteps.filter((step: { status: string }) => step.status === 'COMPLETED').length
       const stepCompletion = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0
 
       // Tema bilgisini SH'den al ve array olarak döndür
@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
         stepCompletion: Math.round(stepCompletion),
         totalSteps,
         completedSteps,
-        isOverdue: action.actionSteps.some(step => 
+        isOverdue: action.actionSteps.some((step: { status: string; dueDate: Date | string | null }) => 
           step.status !== 'COMPLETED' && step.dueDate && new Date(step.dueDate) < new Date()
         ),
         impactedKpis: action.actionKpis.map(ak => ({
@@ -191,7 +191,7 @@ export async function PATCH(request: NextRequest) {
 
     // Güncellenmiş eylemi frontend formatına dönüştür
     const totalSteps = updatedAction.actionSteps.length
-    const completedSteps = updatedAction.actionSteps.filter(step => step.status === 'COMPLETED').length
+    const completedSteps = updatedAction.actionSteps.filter((step: { status: string }) => step.status === 'COMPLETED').length
     const stepCompletion = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0
 
     const themes = []
@@ -225,7 +225,7 @@ export async function PATCH(request: NextRequest) {
       stepCompletion: Math.round(stepCompletion),
       totalSteps,
       completedSteps,
-      isOverdue: updatedAction.actionSteps.some(step => 
+      isOverdue: updatedAction.actionSteps.some((step: { status: string; dueDate: Date | string | null }) => 
         step.status !== 'COMPLETED' && step.dueDate && new Date(step.dueDate) < new Date()
       )
     }

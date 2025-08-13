@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import Topbar from '@/components/ui/topbar'
+import Sidebar from '@/components/ui/sidebar'
 
 export const metadata: Metadata = {
   title: "KPI Manager - Model Fabrika Strateji Yönetimi",
@@ -16,7 +18,13 @@ export default function RootLayout({
     <html lang="tr">
       <body className="antialiased min-h-screen bg-gray-50">
         <div className="flex flex-col min-h-screen">
-          {children}
+          <Topbar />
+          <div className="flex">
+            <Sidebar />
+            <main className="flex-1">
+              {children}
+            </main>
+          </div>
         </div>
       </body>
     </html>

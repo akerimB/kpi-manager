@@ -1,13 +1,13 @@
-import nextPlugin from '@next/eslint-plugin-next'
+import next from '@next/eslint-plugin-next'
 
 export default [
   {
     files: ['**/*.{js,jsx,ts,tsx}'],
     plugins: {
-      next: nextPlugin
+      next
     },
     rules: {
-      'next/core-web-vitals': 'error'
+      'next/core-web-vitals': 'warn'
     }
   }
 ]

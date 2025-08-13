@@ -123,121 +123,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Modern Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <BarChart3 className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold text-gray-900">KPI Manager</h1>
-                  <p className="text-sm text-gray-500">v2.1.0</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                <Users className="h-4 w-4" />
-                <span>{userContext.user?.name || 'Kullanıcı'}</span>
-                <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
-                  {userContext.userRole === 'MODEL_FACTORY' ? 'Model Fabrika' :
-                   userContext.userRole === 'UPPER_MANAGEMENT' ? 'Üst Yönetim' : 'Admin'}
-                </span>
-              </div>
-              <div className="flex space-x-2">
-                <button className="p-2 text-gray-400 hover:text-gray-600">
-                  <Bell className="h-5 w-5" />
-                </button>
-                <Link href="/settings" className="p-2 text-gray-400 hover:text-gray-600">
-                  <Settings className="h-5 w-5" />
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="p-2 text-gray-400 hover:text-red-600"
-                  title="Çıkış Yap"
-                >
-                  <LogOut className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="flex">
-        {/* Modern Sidebar */}
-        <aside className="w-64 bg-white shadow-sm h-screen sticky top-0">
-          <nav className="p-4 space-y-2">
-            <div className="sidebar-nav">
-              <a href="#" className="sidebar-nav-item active">
-                <BarChart3 className="h-5 w-5" />
-                <span>Dashboard</span>
-              </a>
-              
-              {/* Model fabrika kullanıcıları için KPI girişi */}
-              {userContext.userRole === 'MODEL_FACTORY' && (
-                <Link href="/kpi-entry" className="sidebar-nav-item">
-                  <Target className="h-5 w-5" />
-                  <span>KPI Girişi</span>
-                </Link>
-              )}
-              
-              {/* Üst yönetim ve admin için eylem yönetimi */}
-              {(userContext.userRole === 'UPPER_MANAGEMENT' || userContext.userRole === 'ADMIN') && (
-                <Link href="/actions" className="sidebar-nav-item">
-                  <Calendar className="h-5 w-5" />
-                  <span>Eylem / Faz İzleme</span>
-                </Link>
-              )}
-              
-              {/* Üst yönetim ve admin için strateji izleme */}
-              {(userContext.userRole === 'UPPER_MANAGEMENT' || userContext.userRole === 'ADMIN') && (
-                <Link href="/strategy" className="sidebar-nav-item">
-                  <TrendingUp className="h-5 w-5" />
-                  <span>Strateji İzleme</span>
-                </Link>
-              )}
-              
-              {/* Tema takibi herkese açık */}
-              <Link href="/themes" className="sidebar-nav-item">
-                <Settings className="h-5 w-5" />
-                <span>Tema Takibi</span>
-              </Link>
-              
-              {/* Etki simülasyonu sadece yetkili kullanıcılar için */}
-              {userContext.permissions.canCreateSimulations && (
-                <Link href="/simulation" className="sidebar-nav-item">
-                  <Target className="h-5 w-5" />
-                  <span>Etki Simülasyonu</span>
-                </Link>
-              )}
-              
-              {/* Admin ayarları sadece admin için */}
-              {userContext.userRole === 'ADMIN' && (
-                <Link href="/settings" className="sidebar-nav-item">
-                  <Settings className="h-5 w-5" />
-                  <span>Yönetici / Ayarlar</span>
-                </Link>
-              )}
-              
-              {/* Ayarlar herkese açık */}
-              {userContext.userRole !== 'ADMIN' && (
-                <Link href="/settings" className="sidebar-nav-item">
-                  <Settings className="h-5 w-5" />
-                  <span>Ayarlar</span>
-                </Link>
-              )}
-            </div>
-          </nav>
-        </aside>
-
-        {/* Main Content */}
-        <main className="flex-1 p-6">
+    <div className="p-6">
           {/* Dashboard Header */}
           <div className="mb-8">
             <div className="flex justify-between items-center">
@@ -493,8 +379,6 @@ export default function Home() {
               </div>
             </CardContent>
           </Card>
-        </main>
-      </div>
     </div>
   )
 }

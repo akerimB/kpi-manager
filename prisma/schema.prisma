@@ -39,6 +39,8 @@ model User {
   
   // KPI girişleri takibi
   kpiEntries     KpiValue[] @relation("EnteredBy")
+  // Yüklediği kanıtlar
+  uploadedEvidences KpiEvidence[] @relation("UploadedBy")
 
   @@map("users")
 }
@@ -98,6 +100,7 @@ model ModelFactory {
   // İlişkiler
   users       User[]
   kpiValues   KpiValue[]
+  kpiEvidences KpiEvidence[]
 
   @@map("model_factories")
 }
@@ -152,6 +155,7 @@ model Kpi {
   // İlişkiler
   kpiValues         KpiValue[]
   actionKpis        ActionKpi[]
+  evidences         KpiEvidence[]
 
   @@map("kpis")
 }
@@ -192,6 +196,32 @@ model Phase {
   actions     Action[]
 
   @@map("phases")
+}
+
+// ============ KPI KANIT YÖNETİMİ ============
+
+model KpiEvidence {
+  id            String       @id @default(cuid())
+  kpiId         String
+  factoryId     String
+  period        String
+  fileKey       String?
+  fileName      String
+  fileType      String
+  fileSize      Int
+  fileUrl       String
+  description   String?
+  category      String?      // REPORT, IMAGE, CERTIFICATE, LOG, EMAIL, OTHER
+  uploadedBy    String?
+  uploadedByUser User?       @relation("UploadedBy", fields: [uploadedBy], references: [id])
+  uploadedAt    DateTime     @default(now())
+
+  // Opsiyonel ilişkiler
+  kpi           Kpi          @relation(fields: [kpiId], references: [id])
+  factory       ModelFactory @relation(fields: [factoryId], references: [id])
+
+  @@index([kpiId, factoryId, period])
+  @@map("kpi_evidence")
 }
 
 model Action {
