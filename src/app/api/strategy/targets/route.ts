@@ -25,10 +25,7 @@ export async function GET(request: NextRequest) {
         kpis: {
           include: {
             kpiValues: {
-              where: {
-                period: period
-                // Fabrika filtresi kaldırıldı - tüm fabrikalar dahil
-              },
+              where: factoryId ? { period, factoryId } : { period },
               include: {
                 factory: {
                   select: {
@@ -41,7 +38,8 @@ export async function GET(request: NextRequest) {
               orderBy: {
                 period: 'desc'
               }
-            }
+            },
+            shWeight: true
           }
         },
         actions: {
@@ -50,7 +48,8 @@ export async function GET(request: NextRequest) {
             code: true,
             completionPercent: true
           }
-        }
+        },
+        goalWeight: true
       },
       orderBy: {
         code: 'asc'
@@ -63,9 +62,7 @@ export async function GET(request: NextRequest) {
                           period === '2024-Q2' ? '2024-Q1' : '2023-Q4'
 
     const previousKpiValues = await prisma.kpiValue.findMany({
-      where: {
-        period: previousPeriod
-      },
+      where: factoryId ? { period: previousPeriod, factoryId } : { period: previousPeriod },
       include: {
         factory: {
           select: {
@@ -79,32 +76,33 @@ export async function GET(request: NextRequest) {
 
     // Her SH için başarım hesapla (tüm fabrikalar bazında)
     const targetDetails = strategicTargets.map(sh => {
-      let totalKpis = sh.kpis.length
-      let totalScore = 0
-      let totalPreviousScore = 0
-      let totalFactoryKpiCombinations = 0
+      // Ağırlıklı KPI ortalaması
+      let shScoreWeightedSum = 0
+      let shWeightSum = 0
+      let shPrevWeightedSum = 0
 
-      // KPI başarım hesaplama - tüm fabrikalar
       sh.kpis.forEach(kpi => {
-        // Mevcut dönem - tüm fabrika değerleri
-        kpi.kpiValues.forEach(kpiValue => {
-          totalFactoryKpiCombinations++
-          const targetValue = kpi.targetValue || 100
-          const score = Math.min(100, (kpiValue.value / targetValue) * 100)
-          totalScore += score
-        })
-
-        // Önceki dönem - trend hesabı için
-        const previousValues = previousKpiValues.filter(pv => pv.kpiId === kpi.id)
-        previousValues.forEach(prevValue => {
-          const targetValue = kpi.targetValue || 100
-          const prevScore = Math.min(100, (prevValue.value / targetValue) * 100)
-          totalPreviousScore += prevScore
-        })
+        const tv = kpi.targetValue || 100
+        let kpiScore = 0
+        if (kpi.kpiValues.length > 0) {
+          const avgVal = kpi.kpiValues.reduce((s, kv) => s + kv.value, 0) / kpi.kpiValues.length
+          kpiScore = Math.min(100, (avgVal / tv) * 100)
+        }
+        const prevVals = previousKpiValues.filter(pv => pv.kpiId === kpi.id)
+        let kpiPrevScore = 0
+        if (prevVals.length > 0) {
+          const avgPrev = prevVals.reduce((s, kv) => s + kv.value, 0) / prevVals.length
+          kpiPrevScore = Math.min(100, (avgPrev / tv) * 100)
+        }
+        const w = (kpi as any).shWeight ?? 0
+        const weight = w > 0 ? w : 0
+        shScoreWeightedSum += kpiScore * weight
+        shPrevWeightedSum += kpiPrevScore * weight
+        shWeightSum += weight
       })
 
-      const averageScore = totalFactoryKpiCombinations > 0 ? totalScore / totalFactoryKpiCombinations : 0
-      const previousAverageScore = totalFactoryKpiCombinations > 0 ? totalPreviousScore / totalFactoryKpiCombinations : 0
+      const averageScore = shWeightSum > 0 ? Math.round(shScoreWeightedSum / shWeightSum) : 0
+      const previousAverageScore = shWeightSum > 0 ? Math.round(shPrevWeightedSum / shWeightSum) : 0
       const trend = averageScore - previousAverageScore
 
       // Eğer belirli bir fabrika seçiliyse, o fabrika için ayrı hesaplama
@@ -134,7 +132,7 @@ export async function GET(request: NextRequest) {
         strategicGoalId: sh.strategicGoal.id,
         successRate: Math.round(averageScore), // Tüm fabrikalar ortalaması
         factorySpecificScore, // Seçili fabrika skoru (varsa)
-        kpiCount: totalKpis,
+        kpiCount: sh.kpis.length,
         trend: Math.round(trend),
         totalFactories: new Set(
           sh.kpis.flatMap(kpi => 

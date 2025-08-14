@@ -101,8 +101,35 @@ model ModelFactory {
   users       User[]
   kpiValues   KpiValue[]
   kpiEvidences KpiEvidence[]
+  sectorWeights FactorySectorWeight[]
+  targetWeights FactoryTargetWeight[]
 
   @@map("model_factories")
+}
+
+// Model fabrika × sektör payları (toplam ≈ 1)
+model FactorySectorWeight {
+  id         String       @id @default(cuid())
+  factoryId  String
+  factory    ModelFactory @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+  sector     String
+  share      Float        // 0-1
+
+  @@unique([factoryId, sector])
+  @@map("factory_sector_weights")
+}
+
+// Model fabrika × stratejik hedef (SH) ağırlıkları (Weights_Wide)
+model FactoryTargetWeight {
+  id               String           @id @default(cuid())
+  factoryId        String
+  factory          ModelFactory     @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+  strategicTargetId String
+  strategicTarget   StrategicTarget @relation(fields: [strategicTargetId], references: [id], onDelete: Cascade)
+  weight           Float            // 0-1
+
+  @@unique([factoryId, strategicTargetId])
+  @@map("factory_target_weights")
 }
 
 // ============ STRATEJİK YAPILAR ============
@@ -134,6 +161,8 @@ model StrategicTarget {
   // İlişkiler
   kpis             Kpi[]
   actions          Action[]
+  goalWeight       Float?       // SA içindeki ağırlık (0-1)
+  factoryWeights   FactoryTargetWeight[]
 
   @@map("strategic_targets")
 }
@@ -156,6 +185,7 @@ model Kpi {
   kpiValues         KpiValue[]
   actionKpis        ActionKpi[]
   evidences         KpiEvidence[]
+  shWeight          Float?       // SH içindeki KPI ağırlığı (0-1)
 
   @@map("kpis")
 }
@@ -175,6 +205,7 @@ model KpiValue {
   enteredByUser User?        @relation("EnteredBy", fields: [enteredBy], references: [id])
   enteredAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
+  nace4d        String?
 
   @@unique([kpiId, factoryId, period])
   @@map("kpi_values")
@@ -242,8 +273,24 @@ model Action {
   actionSteps         ActionStep[]
   actionKpis          ActionKpi[]
   simulationItems     SimulationItem[]
+  budgets             ActionBudget[]
 
   @@map("actions")
+}
+
+// Eylem bütçeleri (özet düzeyinde plan/gerçek)
+model ActionBudget {
+  id            String   @id @default(cuid())
+  actionId      String   @unique
+  action        Action   @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  currency      String   @default("TRY")
+  plannedAmount Float    @default(0)
+  actualAmount  Float    @default(0)
+  capexOpex     String   @default("OPEX") // CAPEX, OPEX
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+
+  @@map("action_budgets")
 }
 
 model ActionStep {
@@ -256,6 +303,13 @@ model ActionStep {
   action      Action           @relation(fields: [actionId], references: [id], onDelete: Cascade)
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
+
+  // Bütçe ve dönem bilgileri
+  period       String?
+  plannedCost  Float?          @default(0)
+  actualCost   Float?          @default(0)
+  currency     String          @default("TRY")
+  capexOpex    String          @default("OPEX") // CAPEX, OPEX
 
   @@map("action_steps")
 }

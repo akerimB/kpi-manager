@@ -1,0 +1,89 @@
+İl,Sektör,Method,Pay_(0-1)
+Adana,Diğer,data,0.3607
+Adana,Elektrik-Elektronik,data,0.0474
+Adana,Gıda/İçecek,data,0.1246
+Adana,Kimya,data,0.1949
+Adana,Makine,data,0.041
+Adana,Tekstil,data,0.1602
+Adana,Çelik,data,0.0712
+Ankara,Diğer,estimate,0.25
+Ankara,Elektrik-Elektronik,estimate,0.12
+Ankara,Kimya,estimate,0.1
+Ankara,Makine,estimate,0.22
+Ankara,Medikal Cihaz,estimate,0.08
+Ankara,Otomotiv,estimate,0.05
+Ankara,Savunma/Havacılık,estimate,0.18
+Bursa,Diğer,data,0.356428571
+Bursa,Hazır Giyim,data,0.086538462
+Bursa,Makine,data,0.068901099
+Bursa,Otomotiv,data,0.417582418
+Bursa,Tekstil,data,0.070549451
+Denizli,Demir Dışı Metaller,data,0.14
+Denizli,Diğer,data,0.2
+Denizli,Elektrik-Elektronik,data,0.2
+Denizli,Mermer/Doğal Taş,data,0.06
+Denizli,Tarım (Yaş Meyve-Sebze),data,0.08
+Denizli,Tekstil,data,0.32
+Eskişehir,Diğer,estimate,0.31
+Eskişehir,Elektrik-Elektronik,estimate,0.07
+Eskişehir,Havacılık,estimate,0.2
+Eskişehir,Makine,estimate,0.15
+Eskişehir,Raylı Sistemler,estimate,0.22
+Eskişehir,Çelik,estimate,0.05
+Gaziantep,Diğer,mixed,0.344513225
+Gaziantep,Gıda/İçecek,mixed,0.288263675
+Gaziantep,Makine,mixed,0.05
+Gaziantep,Plastik/Kauçuk,mixed,0.12
+Gaziantep,Tekstil,mixed,0.1972231
+Kayseri,Beyaz Eşya,estimate,0.05
+Kayseri,Diğer,estimate,0.25
+Kayseri,Kablo/Bakır,estimate,0.22
+Kayseri,Makine,estimate,0.08
+Kayseri,Metal (Fabrikasyon),estimate,0.1
+Kayseri,Mobilya,estimate,0.24
+Kayseri,Tekstil,estimate,0.06
+Kocaeli,Demir Dışı Metaller,data,0.05668029
+Kocaeli,Diğer,data,0.107214241
+Kocaeli,Elektrik-Elektronik,data,0.049331891
+Kocaeli,Kimya,data,0.255523114
+Kocaeli,Otomotiv,data,0.474211286
+Kocaeli,Çelik,data,0.057039178
+Konya,Diğer,estimate,0.27
+Konya,Döküm,estimate,0.12
+Konya,Gıda/İçecek,estimate,0.07
+Konya,Makine,estimate,0.28
+Konya,Otomotiv Yan,estimate,0.2
+Konya,Çelik,estimate,0.06
+Malatya,Diğer,estimate,0.41
+Malatya,Gıda/İçecek,estimate,0.38
+Malatya,Makine,estimate,0.05
+Malatya,Tekstil,estimate,0.16
+Mersin,Demir Dışı Metaller,estimate,0.06
+Mersin,Diğer,estimate,0.31
+Mersin,Gıda/İçecek,estimate,0.12
+Mersin,Kimya,estimate,0.18
+Mersin,Plastik/Kauçuk,estimate,0.06
+Mersin,Tarım (Yaş Meyve-Sebze),estimate,0.27
+Samsun,Diğer,estimate,0.42
+Samsun,Gıda/İçecek,estimate,0.12
+Samsun,Makine,estimate,0.08
+Samsun,Medikal Cihaz,estimate,0.2
+Samsun,Metal (Fabrikasyon),estimate,0.18
+Tekirdağ,Diğer,estimate,0.26
+Tekirdağ,Kimya,estimate,0.2
+Tekirdağ,Makine,estimate,0.08
+Tekirdağ,Plastik/Kauçuk,estimate,0.14
+Tekirdağ,Tekstil,estimate,0.26
+Tekirdağ,Çelik,estimate,0.06
+Trabzon,Demir Dışı Metaller,estimate,0.18
+Trabzon,Diğer,estimate,0.35
+Trabzon,Gıda/İçecek,estimate,0.1
+Trabzon,Makine,estimate,0.05
+Trabzon,Su Ürünleri,estimate,0.32
+İzmir,Demir Dışı Metaller,estimate,0.07
+İzmir,Diğer,estimate,0.27
+İzmir,Elektrik-Elektronik,estimate,0.1
+İzmir,Gıda/İçecek,estimate,0.15
+İzmir,Kimya,estimate,0.26
+İzmir,Makine,estimate,0.1
+İzmir,Su Ürünleri,estimate,0.05

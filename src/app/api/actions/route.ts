@@ -79,8 +79,20 @@ export async function GET(request: NextRequest) {
         },
         phase: true,
         actionSteps: {
-          orderBy: {
-            createdAt: 'asc'
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            dueDate: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+            period: true,
+            plannedCost: true,
+            actualCost: true,
+            currency: true,
+            capexOpex: true
           }
         },
         actionKpis: {
@@ -140,6 +152,7 @@ export async function GET(request: NextRequest) {
         stepCompletion: Math.round(stepCompletion),
         totalSteps,
         completedSteps,
+        steps: action.actionSteps,
         isOverdue: action.actionSteps.some((step: { status: string; dueDate: Date | string | null }) => 
           step.status !== 'COMPLETED' && step.dueDate && new Date(step.dueDate) < new Date()
         ),
@@ -179,13 +192,25 @@ export async function PATCH(request: NextRequest) {
         updatedAt: new Date()
       },
       include: {
-        strategicTarget: {
-          include: {
-            strategicGoal: true
-          }
-        },
+        strategicTarget: { include: { strategicGoal: true } },
         phase: true,
-        actionSteps: true
+        actionSteps: {
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            dueDate: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+            period: true,
+            plannedCost: true,
+            actualCost: true,
+            currency: true,
+            capexOpex: true
+          }
+        }
       }
     }) as any
 
@@ -225,6 +250,7 @@ export async function PATCH(request: NextRequest) {
       stepCompletion: Math.round(stepCompletion),
       totalSteps,
       completedSteps,
+      steps: updatedAction.actionSteps,
       isOverdue: updatedAction.actionSteps.some((step: { status: string; dueDate: Date | string | null }) => 
         step.status !== 'COMPLETED' && step.dueDate && new Date(step.dueDate) < new Date()
       )

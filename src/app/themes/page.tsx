@@ -67,6 +67,16 @@ export default function ThemeTracking() {
     try {
       const response = await fetch(`/api/themes?${apiParams}`)
       const themeData = await response.json()
+      // API Türkçe durum döndürebilir; UI İngilizce enum bekliyor. Hızlı dönüşüm uygula.
+      if (themeData && Array.isArray(themeData.themes)) {
+        themeData.themes = themeData.themes.map((t: any) => ({
+          ...t,
+          status: (t.status || '').toLowerCase() === 'mükemmel' ? 'excellent' :
+                  (t.status || '').toLowerCase() === 'iyi' ? 'good' :
+                  (t.status || '').toLowerCase().includes('risk') ? 'at-risk' :
+                  (t.status || '').toLowerCase() === 'kritik' ? 'critical' : t.status
+        }))
+      }
       setData(themeData)
     } catch (error) {
       console.error('Error fetching theme data:', error)

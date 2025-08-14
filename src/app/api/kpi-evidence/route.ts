@@ -68,6 +68,16 @@ export async function POST(request: NextRequest) {
         category: category || null,
         uploadedBy: uploadedBy || null,
         fileKey: fileKey || null,
+        // Opsiyonel kanıt alanları
+        firmIdHash: (body.firmIdHash as string) || null,
+        nace2d: (body.nace2d as string) || null,
+        nace4d: (body.nace4d as string) || null,
+        province: (body.province as string) || null,
+        zoneType: (body.zoneType as string) || null,
+        employees: body.employees !== undefined ? Number(body.employees) : null,
+        revenue: body.revenue !== undefined ? Number(body.revenue) : null,
+        hasExport: body.hasExport === true,
+        meta: body.meta ? body.meta : undefined,
       }
     })
 

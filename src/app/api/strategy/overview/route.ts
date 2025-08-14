@@ -16,10 +16,7 @@ export async function GET(request: Request) {
             kpis: {
               include: {
                 kpiValues: {
-                  where: {
-                    period: period
-                    // Fabrika filtresi kaldırıldı - tüm fabrikalar dahil
-                  },
+                  where: factoryId ? { period, factoryId } : { period },
                   include: {
                     factory: {
                       select: {
@@ -34,7 +31,8 @@ export async function GET(request: Request) {
                   }
                 }
               }
-            }
+            },
+            goalWeight: true
           }
         }
       },
@@ -49,9 +47,7 @@ export async function GET(request: Request) {
                           period === '2024-Q2' ? '2024-Q1' : '2023-Q4'
 
     const previousKpiValues = await prisma.kpiValue.findMany({
-      where: {
-        period: previousPeriod
-      },
+      where: factoryId ? { period: previousPeriod, factoryId } : { period: previousPeriod },
       include: {
         factory: {
           select: {
@@ -63,68 +59,66 @@ export async function GET(request: Request) {
       }
     })
 
-    // Her SA için başarım hesapla (tüm fabrikalar bazında)
+    // Her SA için başarım hesapla (ağırlıklı)
     const strategicOverview = strategicGoals.map(sa => {
-      let totalKpis = 0
-      let totalScore = 0
-      let totalPreviousScore = 0
-      let totalFactoryKpiCombinations = 0
-
+      // SH bazında KPI ağırlıklarıyla (kpi.shWeight) skor
+      let saWeightedScore = 0
+      let saWeightSum = 0
+      let saPrevWeightedScore = 0
+      
       sa.strategicTargets.forEach(sh => {
-        sh.kpis.forEach(kpi => {
-          totalKpis++
-          
-          // Mevcut dönem - tüm fabrika değerleri
-          kpi.kpiValues.forEach(kpiValue => {
-            totalFactoryKpiCombinations++
-            const targetValue = kpi.targetValue || 100
-            const score = Math.min(100, (kpiValue.value / targetValue) * 100)
-            totalScore += score
-          })
+        // KPI başına fabrikanın ortalaması -> KPI skoru
+        let shScoreWeightedSum = 0
+        let shWeightSum = 0
+        let shPrevScoreWeightedSum = 0
 
-          // Önceki dönem - trend hesabı için
-          const previousValues = previousKpiValues.filter(pv => pv.kpiId === kpi.id)
-          previousValues.forEach(prevValue => {
-            const targetValue = kpi.targetValue || 100
-            const prevScore = Math.min(100, (prevValue.value / targetValue) * 100)
-            totalPreviousScore += prevScore
-          })
+        sh.kpis.forEach(kpi => {
+          const tv = kpi.targetValue || 100
+          // Mevcut dönem KPI skoru: kpiValues ortalaması
+          let kpiScore = 0
+          if (kpi.kpiValues.length > 0) {
+            const avgVal = kpi.kpiValues.reduce((s, kv) => s + kv.value, 0) / kpi.kpiValues.length
+            kpiScore = Math.min(100, (avgVal / tv) * 100)
+          }
+          // Önceki dönem KPI skoru
+          const prevVals = previousKpiValues.filter(pv => pv.kpiId === kpi.id)
+          let kpiPrevScore = 0
+          if (prevVals.length > 0) {
+            const avgPrev = prevVals.reduce((s, kv) => s + kv.value, 0) / prevVals.length
+            kpiPrevScore = Math.min(100, (avgPrev / tv) * 100)
+          }
+          const w = (kpi as any).shWeight ?? 0 // Prisma type doesn't include field unless selected; cast any
+          const weight = w > 0 ? w : 0
+          shScoreWeightedSum += kpiScore * weight
+          shPrevScoreWeightedSum += kpiPrevScore * weight
+          shWeightSum += weight
         })
+
+        const shScore = shWeightSum > 0 ? shScoreWeightedSum / shWeightSum : 0
+        const shPrev = shWeightSum > 0 ? shPrevScoreWeightedSum / shWeightSum : 0
+        const shW = (sh as any).goalWeight ?? 0
+        const shWeight = shW > 0 ? shW : 0
+        saWeightedScore += shScore * shWeight
+        saPrevWeightedScore += shPrev * shWeight
+        saWeightSum += shWeight
       })
 
-      const averageScore = totalFactoryKpiCombinations > 0 ? totalScore / totalFactoryKpiCombinations : 0
-      const previousAverageScore = totalFactoryKpiCombinations > 0 ? totalPreviousScore / totalFactoryKpiCombinations : 0
+      const averageScore = saWeightSum > 0 ? Math.round(saWeightedScore / saWeightSum) : 0
+      const previousAverageScore = saWeightSum > 0 ? Math.round(saPrevWeightedScore / saWeightSum) : 0
       const trend = averageScore - previousAverageScore
 
-      // Eğer belirli bir fabrika seçiliyse, o fabrika için ayrı hesaplama
+      // Eğer belirli bir fabrika seçiliyse, o fabrika için ayrı hesaplama (zaten factoryId ile filtreli)
       let factorySpecificScore = null
-      if (factoryId) {
-        let factoryScore = 0
-        let factoryKpiCount = 0
-        
-        sa.strategicTargets.forEach(sh => {
-          sh.kpis.forEach(kpi => {
-            const factoryKpiValue = kpi.kpiValues.find(kv => kv.factory.id === factoryId)
-            if (factoryKpiValue) {
-              factoryKpiCount++
-              const targetValue = kpi.targetValue || 100
-              const score = Math.min(100, (factoryKpiValue.value / targetValue) * 100)
-              factoryScore += score
-            }
-          })
-        })
-        
-        factorySpecificScore = factoryKpiCount > 0 ? Math.round(factoryScore / factoryKpiCount) : 0
-      }
+      if (factoryId) factorySpecificScore = averageScore
 
       return {
         id: sa.id,
         code: sa.code,
         title: sa.title,
         description: sa.description || '',
-        successRate: Math.round(averageScore), // Tüm fabrikalar ortalaması
+        successRate: averageScore,
         factorySpecificScore, // Seçili fabrika skoru (varsa)
-        trend: Math.round(trend),
+        trend,
         totalFactories: new Set(
           sa.strategicTargets.flatMap(sh => 
             sh.kpis.flatMap(kpi => 

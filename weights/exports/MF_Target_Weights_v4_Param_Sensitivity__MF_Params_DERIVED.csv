@@ -1,0 +1,16 @@
+Model Fabrika,Durum,Economic_Size_Index,Sektör_Uyumu,Ekonomik_Büyüklük,Olgunluk,Yeşil_Yoğunluk
+Ankara,Aktif,1.034175553,1.02,1.034175553,1,0.9
+Bursa,Aktif,1.055357757,1.011406593,1.055357757,1,1.1
+Gaziantep,Aktif,1.001459122,1.021097355,1.001459122,1,1.1
+İzmir,Aktif,1.030507396,1.022,1.030507396,1,1.1
+Kayseri,Aktif,0.93,1.022,0.93,1,0.9
+Konya,Aktif,0.934783855,1.02,0.934783855,1,0.9
+Mersin,Aktif,0.931565187,1.014,0.931565187,1,0.95
+Adana,Aktif,0.930706341,1.00542,0.930706341,1,1.1
+Eskişehir,Aktif,1,1.014,1,1,0.9
+Samsun,Aktif,1,1,1,1,0.9
+Denizli,Planlanan,0.941437908,1.044,0.941437908,0.7,1.1
+Kocaeli,Planlanan,1.085,1.078557152,1.085,0.7,1.1
+Malatya,Planlanan,0.95,1.008,0.95,0.7,0.9
+Tekirdağ,Planlanan,1,1.02,1,0.7,1.1
+Trabzon,Planlanan,0.95,1.02,0.95,0.7,0.9

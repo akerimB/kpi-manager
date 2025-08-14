@@ -1,0 +1,21 @@
+Adımlar,,,
+1) Achievements_Wide'a SH_code bazında gerçekleşme (%) giriniz.,,,
+2) Plans_Wide'da plan (%) giriniz (varsayılan 100).,,,
+3) MODEL_PARAMS'tan eşik ve katsayıları güncelleyiniz.,,,
+,,,
+Model Fabrika,Toplam Ağırlıklı Puan (0-100),Durum (R/G/Y),Plan Karşılaştırma (OK/Risk)
+Adana,0,0,0
+Ankara,0,0,0
+Bursa,0,0,0
+Denizli,0,0,0
+Eskişehir,0,0,0
+Gaziantep,0,0,0
+Kayseri,0,0,0
+Kocaeli,0,0,0
+Konya,0,0,0
+Malatya,0,0,0
+Mersin,0,0,0
+Samsun,0,0,0
+Tekirdağ,0,0,0
+Trabzon,0,0,0
+İzmir,0,0,0

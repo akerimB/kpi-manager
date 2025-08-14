@@ -230,7 +230,7 @@ async function seedActions() {
         if (description.includes('kritik') || description.includes('acil')) priority = 'HIGH'
         if (description.includes('düşük öncelik')) priority = 'LOW'
         
-        await prisma.action.upsert({
+        const upserted = await prisma.action.upsert({
           where: { code: eCode },
           update: {
             description,
@@ -244,6 +244,37 @@ async function seedActions() {
             strategicTargetId: strategicTarget.id,
             responsibleUnit,
             priority: priority
+          }
+        })
+        // Faz ataması (mantıksal)
+        const phases = await prisma.phase.findMany()
+        const byName = (name: string) => phases.find(p => (p.name || '').toLowerCase() === name.toLowerCase())
+        const descLower = (description || '').toLowerCase()
+        let phaseName: string | null = null
+        // Açık faz ifadeleri önceliklidir
+        if (descLower.includes('faz 1')) phaseName = 'Faz 1'
+        else if (descLower.includes('faz 2')) phaseName = 'Faz 2'
+        else if (descLower.includes('faz 3')) phaseName = 'Faz 3'
+        else if (
+          descLower.includes('sürekli') ||
+          descLower.includes('periyodik') ||
+          descLower.includes('düzenli') ||
+          descLower.includes('devam') ||
+          descLower.includes('sürekli iyileştirme')
+        ) phaseName = 'Sürekli'
+        // E koduna göre sezgisel atama
+        if (!phaseName) {
+          if (eCode.startsWith('E1.')) phaseName = 'Faz 1' // farkındalık/eğitim/başlatma
+          else if (eCode.startsWith('E2.')) phaseName = 'Faz 2' // gelir/ürünleştirme/ticarileşme
+          else if (eCode.startsWith('E3.')) phaseName = 'Faz 2' // kapasite/operasyonel yetkinlik
+          else if (eCode.startsWith('E4.')) phaseName = 'Faz 3' // paydaş/marka/ileri işbirlikleri
+        }
+        const selectedPhase = phaseName ? byName(phaseName) : undefined
+        await prisma.action.update({
+          where: { id: upserted.id },
+          data: {
+            completionPercent: Math.round(Math.random() * 100),
+            phaseId: selectedPhase ? selectedPhase.id : undefined
           }
         })
       }
@@ -261,7 +292,12 @@ async function seedModelFactories() {
     { code: 'MF02', name: 'Ankara Model Fabrikası', city: 'Ankara', region: 'İç Anadolu' },
     { code: 'MF03', name: 'İzmir Model Fabrikası', city: 'İzmir', region: 'Ege' },
     { code: 'MF04', name: 'Bursa Model Fabrikası', city: 'Bursa', region: 'Marmara' },
-    { code: 'MF05', name: 'Kayseri Model Fabrikası', city: 'Kayseri', region: 'İç Anadolu' }
+    { code: 'MF05', name: 'Kayseri Model Fabrikası', city: 'Kayseri', region: 'İç Anadolu' },
+    { code: 'MF06', name: 'Gaziantep Model Fabrikası', city: 'Gaziantep', region: 'Güneydoğu' },
+    { code: 'MF07', name: 'Konya Model Fabrikası', city: 'Konya', region: 'İç Anadolu' },
+    { code: 'MF08', name: 'Samsun Model Fabrikası', city: 'Samsun', region: 'Karadeniz' },
+    { code: 'MF09', name: 'Antalya Model Fabrikası', city: 'Antalya', region: 'Akdeniz' },
+    { code: 'MF10', name: 'Erzurum Model Fabrikası', city: 'Erzurum', region: 'Doğu Anadolu' }
   ]
 
   for (const factory of factories) {
@@ -271,6 +307,33 @@ async function seedModelFactories() {
       create: {
         ...factory,
         established: new Date('2024-01-01')
+      }
+    })
+  }
+}
+
+// Her eylem için bütçe oluştur/güncelle
+async function seedActionBudgets() {
+  console.log('💰 Seeding Action Budgets...')
+  const actions = await prisma.action.findMany()
+  for (const action of actions) {
+    const planned = Math.round(Math.random() * 2_000_000 + 200_000) // 200k - 2.2M
+    const actual = Math.round(planned * (0.6 + Math.random() * 0.8)) // %60 - %140
+    const capexOpex = Math.random() > 0.7 ? 'CAPEX' : 'OPEX'
+    await prisma.actionBudget.upsert({
+      where: { actionId: action.id },
+      update: {
+        plannedAmount: planned,
+        actualAmount: actual,
+        capexOpex,
+        currency: 'TRY'
+      },
+      create: {
+        actionId: action.id,
+        plannedAmount: planned,
+        actualAmount: actual,
+        capexOpex,
+        currency: 'TRY'
       }
     })
   }
@@ -376,7 +439,7 @@ async function seedSampleKpiValues() {
   const factories = await prisma.modelFactory.findMany()
   const kpis = await prisma.kpi.findMany()
   
-  const periods = ['2023-Q4', '2024-Q1', '2024-Q2', '2024-Q3']
+  const periods = ['2023-Q4', '2024-Q1', '2024-Q2', '2024-Q3', '2024-Q4']
   
   for (const factory of factories) {
     for (const period of periods) {
@@ -384,8 +447,8 @@ async function seedSampleKpiValues() {
       const year = parseInt(yearStr)
       const quarter = parseInt(quarterStr)
       
-      for (const kpi of kpis.slice(0, 10)) { // İlk 10 KPI için örnek veri
-        const baseValue = Math.random() * 100 + 50 // 50-150 arası temel değer
+      for (const kpi of kpis) { // Tüm KPI'lar için veri
+        const baseValue = Math.random() * 80 + 40 // 40-120 arası temel değer
         const randomVariation = (Math.random() - 0.5) * 20 // -10 ile +10 arası varyasyon
         const value = Math.max(0, baseValue + randomVariation)
         
@@ -418,48 +481,122 @@ async function seedSampleKpiValues() {
 async function seedActionKpiRelationships() {
   console.log('🔗 Seeding Action-KPI Relationships...')
   
-  const actions = await prisma.action.findMany({
-    include: {
-      strategicTarget: true
-    }
-  })
-  const kpis = await prisma.kpi.findMany()
-  
-  // Her eylem için rastgele KPI'larla ilişki kur
-  for (const action of actions) {
-    // Her eylem için 1-3 arası KPI ile ilişki kur
-    const relationshipCount = Math.floor(Math.random() * 3) + 1
-    const shuffledKpis = kpis.sort(() => 0.5 - Math.random())
-    const selectedKpis = shuffledKpis.slice(0, relationshipCount)
-    
-    for (const kpi of selectedKpis) {
-      // Rastgele etki skoru ve kategorisi
-      const impactScore = Math.random() * 0.8 + 0.2 // 0.2-1.0 arası
-      const impactCategory = impactScore > 0.7 ? 'HIGH' : 
-                            impactScore > 0.4 ? 'MEDIUM' : 'LOW'
-      
-      await prisma.actionKpi.upsert({
-        where: {
-          actionId_kpiId: {
-            actionId: action.id,
-            kpiId: kpi.id
-          }
-        },
-        update: {
-          impactScore,
-          impactCategory
-        },
-        create: {
-          actionId: action.id,
-          kpiId: kpi.id,
-          impactScore,
-          impactCategory
+  // Yardımcı: anahtar kelime skorlaması
+  const KEYWORDS: Array<{ terms: string[]; theme?: 'LEAN'|'DIGITAL'|'GREEN'|'RESILIENCE'; weight: number }>= [
+    { terms: ['yalın', 'israf', 'verim', '5s', 'kaizen', 'standartlaş', 'sürekli iyileştirme'], theme: 'LEAN', weight: 2.0 },
+    { terms: ['dijital', 'erp', 'crm', 'lms', 'otomasyon', 'platform', 'siber', 'veri', 'ar/vr', 'simülasyon', 'dijital ikiz'], theme: 'DIGITAL', weight: 2.0 },
+    { terms: ['yeşil', 'enerji', 'karbon', 'çevre', 'sürdürülebil', 'emisyon'], theme: 'GREEN', weight: 2.0 },
+    { terms: ['risk', 'güvenlik', 'direnç', 'kriz', 'acil', 'süreklilik'], theme: 'RESILIENCE', weight: 2.0 },
+    { terms: ['eğitim', 'müfredat', 'sertifika', 'atölye', 'mentorluk', 'staj'], weight: 1.2 },
+    { terms: ['pazarlama', 'fiyat', 'satış', 'gelir', 'müşteri', 'nps'], weight: 1.2 },
+    { terms: ['işbirliği', 'üniversite', 'tez', 'yayın', 'konferans'], weight: 1.0 },
+    { terms: ['bütçe', 'maliyet', 'finans', 'hibe', 'fon'], weight: 1.0 },
+  ]
+
+  const normalize = (s: string) => s.toLowerCase()
+
+  const actions = await prisma.action.findMany({ include: { strategicTarget: true } })
+  const kpis = await prisma.kpi.findMany({ include: { strategicTarget: true } })
+
+  // CSV'den manuel KPI ipuçları (opsiyonel sütun: KPI_Hint)
+  let actionCodeToKpiHint = new Map<string, string>()
+  try {
+    const eCsvPath = path.join(process.cwd(), 'Eylem_Listesi.csv')
+    const eCsvContent = fs.readFileSync(eCsvPath, 'utf-8')
+    const eRows = parseCSV(eCsvContent)
+    if (eRows.length > 1) {
+      const header = eRows[0].map(h => h.trim())
+      const codeIdx = header.findIndex(h => ['E_code', 'E_CODE', 'ecode', 'ECode'].includes(h))
+      const hintIdx = header.findIndex(h => ['KPI_Hint', 'KPI_HINT', 'kpi_hint', 'KPIHint'].includes(h))
+      if (codeIdx >= 0 && hintIdx >= 0) {
+        for (const row of eRows.slice(1)) {
+          const code = (row[codeIdx] || '').trim()
+          const hint = (row[hintIdx] || '').trim()
+          if (code && hint) actionCodeToKpiHint.set(code, hint)
         }
+      }
+    }
+  } catch (err) {
+    // sütun yoksa sorun değil
+  }
+
+  for (const action of actions) {
+    const actionText = normalize(action.description)
+    const actionThemes: string[] = []
+    if (action.strategicTarget.code.startsWith('SH1')) actionThemes.push('LEAN','DIGITAL','GREEN','RESILIENCE')
+    if (action.strategicTarget.code.startsWith('SH2')) actionThemes.push('LEAN')
+    if (action.strategicTarget.code.startsWith('SH3')) actionThemes.push('DIGITAL')
+    if (action.strategicTarget.code.startsWith('SH4')) actionThemes.push('RESILIENCE')
+
+    // Önce aynı SH altındaki KPI'ları aday al
+    let candidateKpis = kpis.filter(k => k.strategicTargetId === action.strategicTargetId)
+
+    // Manuel ipuçları uygula
+    const hintRaw = actionCodeToKpiHint.get(action.code || '') || ''
+    const tokens = hintRaw.split(/[;,|]/).map(t => t.trim()).filter(Boolean)
+    const hintedNumbers = new Set<number>()
+    const hintedThemes = new Set<string>()
+    const hintedSH = new Set<string>()
+    for (const t of tokens) {
+      const up = t.toUpperCase()
+      if (/^\d+$/.test(up)) hintedNumbers.add(parseInt(up))
+      else if (/^KPI\s*:\s*\d+$/.test(up)) hintedNumbers.add(parseInt(up.replace(/[^0-9]/g, '')))
+      else if (/^SH\d+\.\d+$/.test(up)) hintedSH.add(up)
+      else if (['LEAN','DIGITAL','GREEN','RESILIENCE'].includes(up)) hintedThemes.add(up)
+    }
+    // Sayı ile verilen KPI'ları adaylara ekle (aynı SH olmasa da)
+    if (hintedNumbers.size > 0) {
+      const hintedKpis = kpis.filter(k => hintedNumbers.has(k.number))
+      const byId = new Set(candidateKpis.map(k => k.id))
+      for (const hk of hintedKpis) if (!byId.has(hk.id)) candidateKpis.push(hk)
+    }
+
+    const scored = candidateKpis.map((k) => {
+      const kThemes = (k.themes || '').split(',').map(t => t.trim()).filter(Boolean)
+      // SH eşleşme tabanı
+      let score = 1.0
+      // Tema kesişimi
+      if (kThemes.some(t => actionThemes.includes(t))) score += 1.0
+      // Anahtar kelimeler
+      for (const kw of KEYWORDS) {
+        if (kw.terms.some(term => actionText.includes(term))) {
+          score += kw.weight
+          if (kw.theme && kThemes.includes(kw.theme)) score += 0.8
+        }
+      }
+      // Manuel ipuçları bonusları
+      if (hintedNumbers.has(k.number)) score += 5.0
+      if (hintedSH.has(k.strategicTarget.code.toUpperCase())) score += 2.0
+      if (kThemes.some(t => hintedThemes.has(t))) score += 1.5
+      // Kod sezgisi: E1/E2/E3/E4 ile SH1/2/3/4 uyumu zaten var; ek küçük bonus
+      score += 0.2
+      return { kpi: k, score }
+    })
+
+    scored.sort((a, b) => b.score - a.score)
+    const top = scored.slice(0, Math.min(3, Math.max(1, Math.round(Math.random()*2)+1)))
+
+    for (const { kpi, score } of top) {
+      // Etki skoru: eylem önceliği + skor normalize
+      let base: number = 0.5
+      const pr = (action.priority || '').toUpperCase()
+      if (pr === 'CRITICAL') base = 0.9
+      else if (pr === 'HIGH') base = 0.75
+      else if (pr === 'MEDIUM') base = 0.55
+      else base = 0.35
+      const normScore = Math.min(1, score / 6)
+      const impactScore = Math.max(0.2, Math.min(1.0, (base * 0.6) + (normScore * 0.4)))
+      const impactCategory = impactScore > 0.75 ? 'HIGH' : impactScore > 0.5 ? 'MEDIUM' : 'LOW'
+
+      await prisma.actionKpi.upsert({
+        where: { actionId_kpiId: { actionId: action.id, kpiId: kpi.id } },
+        update: { impactScore, impactCategory },
+        create: { actionId: action.id, kpiId: kpi.id, impactScore, impactCategory }
       })
     }
   }
-  
-  console.log('✅ Action-KPI relationships seeded')
+
+  console.log('✅ Action-KPI relationships seeded (reasoned)')
 }
 
 async function main() {
@@ -474,6 +611,7 @@ async function main() {
   await seedUsers()
   await seedSampleKpiValues()
   await seedActionKpiRelationships()
+  await seedActionBudgets()
   
   console.log('✅ Seed process completed!')
 }

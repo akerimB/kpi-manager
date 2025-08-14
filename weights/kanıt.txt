@@ -1,0 +1,155 @@
+KPI Kanıt & YZ Analizi Kılavuzu — Model Fabrikalar Ağı
+Amaç: Aşağıdaki 41 KPI için (SH1.1…SH4.8) bir Model Fabrika’nın sunabileceği kanıt dosyalarını ve bu kanıtları kullanarak bir Yapay Zekâ (YZ) modelinin yapacağı analizleri tanımlamak. Tüm KPI’larda sektörel kırılımlar (NACE Rev.2) desteklenir.
+ 
+Genel Veri Prensipleri (tüm KPI’lar için)
+•	Kimlik & boyutlandırma alanları: Firma_ID_hash, NACE_4d, İl, OSB/Serbest Bölge, Çalışan_Sayısı, Ciro, İhracat_Varı.
+•	Zaman damgası: Dönem (YYYY Q / YYYY MM), Oluşturulma_Tarihi.
+•	Dosya türleri: CSV/XLSX (tercih), PDF (sertifika/rapor), JSON (sistem logları), görüntü (denetim bulguları).
+•	Sektörel kırılım: YZ, NACE_2d/4d üzerinden gruplayarak ve gerekli yerlerde ağırlıklandırarak (ör. çalışan veya ciro) kırılım üretir; hücre başına minimum n≥5 kuralı uygular.
+ 
+SH1 — Ekosistem & Dönüşüm (Farkındalık–Yetkinlik–Yönlendirme)
+1) SH1.1 — Farkındalık artış oranı
+Kanıt: Ön/son anket ham verisi (CSV), örneklem planı, anket formu, etkinlik katılım listeleri.
+YZ Analizi: Örneklem/yanıt yanlılığını kontrol; ön son t testi, etki büyüklüğü (Cohen d); sektör/il/OSB kırılımında fark analizi; açık uçlu yanıtlara konu modelleme.
+2) SH1.1 — Ortak farkındalık etkinliği düzenlenen kilit kurum sayısı
+Kanıt: Takvim/etkinlik kayıtları, protokoller/MoU, katılımcı listeleri, görsel dokümantasyon.
+YZ Analizi: Kurum eşleşmesi (ad eşleme), çift kayıt temizliği; benzersiz kurum sayımı; etkinlik etki puanı (katılımcı×rol) ve sektörel kapsama haritası.
+3) SH1.2 — Program katılımcılarının istihdam olma oranı
+Kanıt: Katılımcı listesi, yerleştirme kayıtları, kariyer merkezi/mezun takip, (varsa) SGK eşleştirme çıktıları (anonim).
+YZ Analizi: Takip oranı ve örneklem yanlılığı; 12 ay içinde istihdam oranı; sektör/meslek kodu eşleşmesi; karşılaştırma grubu ile fark.
+4) SH1.2 — Toplam eğitim (kişi×saat)
+Kanıt: LMS/katılım logları, eğitim planı, eğitmen raporları.
+YZ Analizi: Kişi×saat otomatik toplanır; no show ve tekrar kayıt ayıklama; sektöre göre kişi×saat; kişi başı maliyet/çıktı ilişkisi.
+5) SH1.3 — Yönlendirme sonucu destek programlarından yararlanan KOBİ sayısı
+Kanıt: Yönlendirme kayıtları (KOSGEB/TÜBİTAK/KA/AB), kabul yazıları, proje sözleşmeleri.
+YZ Analizi: Yönlendirme→başvuru→kabul huni analizi; sektör/il bazında dönüşüm oranı; kabul edilenlerin tutar/temadağılımı.
+6) SH1.4 — Proje tamamlandıktan sonra sürdürülebilirlik oranı
+Kanıt: 6 12 ay takip anketleri, yerinde gözlem formu, foto/video kanıtı, standart çalışma talimatları.
+YZ Analizi: Uygulamaların devam oranı; kontrol listesi puanı; sektörel kalıcılık farkı (örn. gıda vs metal).
+7) SH1.4 — Karbon emisyonu azalış oranı
+Kanıt: Enerji/utility faturaları, sayaç/MES kayıtları, ISO 14064 raporları, ölçüm formları.
+YZ Analizi: Baz çizgi→sonrası normalize tüketim (hava/derece gün, üretim hacmi); %CO₂ eşdeğer azalış; sektörel kıyas (örn. tekstil kg kumaş başına).
+8) SH1.5 — Belirli olgunluk seviyesine ulaşan KOBİ sayısı
+Kanıt: Olgunluk değerlendirme çıktıları (SIRI, DDX, TPM olgunluğu vb.), denetim raporları.
+YZ Analizi: Skor eşiklere göre sınıflama; öncesi sonrası ilerleme; sektör/ölçek kırılımında yetişkinlik haritası.
+9) SH1.6 — Birden fazla temel alanda hizmet alan KOBİ oranı
+Kanıt: CRM hizmet geçmişi (yalın/dijital/yeşil/direçlilik etiketleri), sözleşme kapsamı.
+YZ Analizi: Bütüncül hizmet tanımı (≥2 alan); oran ve sektör bazında çoklu hizmet örüntüleri (market basket).
+10) SH1.6 — Öğren Dönüş Programını tamamlayan KOBİ sayısı
+Kanıt: Program roster, modül tamamlama logları, bitirme raporu.
+YZ Analizi: Tamamlama oranı, modül bazlı darboğaz; sektörel tamamlama farkları.
+ 
+SH2 — Sürdürülebilir İş Modeli (Finans & Gelir)
+11) SH2.1 — Kârlılık oranı
+Kanıt: Gelir tablosu, faaliyet raporu, mali tablolar (aylık/çeyreklik).
+YZ Analizi: Net/operasyonel kârlılık; mevsimsellik arındırma; sektör bazlı benchmark; anormal gider/gelir tespiti.
+12) SH2.1 — Ortalama yıllık gelir artış oranı
+Kanıt: Faturalama kayıtları, tahakkuk raporları, yıllık gelir özeti.
+YZ Analizi: CAGR ve yıl içi trend; sektör/ürün bazında büyüme katkısı; kaynak analizi (yeni×mevcut müşteri).
+13) SH2.2 — Bütçeye uyum oranı (%)
+Kanıt: Bütçe vs Gerçekleşen tabloları, revizyon kararları.
+YZ Analizi: Sapma ayrıştırma (fiyat/hacim/mix); sektör projeleri kaynaklı sapmaların ısı haritası.
+14) SH2.3 — Yeni KOBİ müşteri kazanım sayısı
+Kanıt: CRM lead→müşteri dönüşüm kayıtları, sözleşmeler.
+YZ Analizi: Satış hunisi; kanal/sector bazında kazanım; ilk yıl CLV tahmini.
+15) SH2.3 — KOBİ başına ortalama faturalandırılan hizmet geliri
+Kanıt: Fatura satır dökümü (hizmet kodu, saat, tutar), sözleşme kapsamı.
+YZ Analizi: KOBİ segmentine göre ARPU; paket mix optimizasyonu; sektör×hizmet kârlılık matrisi.
+16) SH2.4 — Operasyonel maliyetlerin öz gelirle karşılanma oranı
+Kanıt: Gider merkezi raporları, bordrolar, kira/enerji giderleri.
+YZ Analizi: Cost to Income oranı; maliyet sürücüleri (aktivite tabanlı); sektör odaklı fiyatlandırma eşiği.
+17) SH2.4 — Yıllık başlatılan yeni gelir getirici hizmet sayısı
+Kanıt: Ürün/hizmet yaşam döngüsü kayıtları, lansman tutanakları, eğitim içerikleri.
+YZ Analizi: Yeni hizmet pipeline’ı; lansman sonrası 6 12 ay tutunma; sektör eşleşme skoru.
+18) SH2.5 — Dış finansman toplamı
+Kanıt: Hibe/sözleşme/taahhüt mektupları, banka/kalkınma ajansı yazışmaları.
+YZ Analizi: Kaynak türü bazında finansman portföyü; crowding in etkisi (MF müdahalesi sonrası).
+ 
+SH3 — Kurumsal Yetkinlik & Süreçler
+19) SH4.8 — Personel elde tutma oranı (not: listede SH4.8 olarak verilmiştir)
+Kanıt: İK çıkış/giriş kayıtları, kadro planı, exit interview özetleri.
+YZ Analizi: Yıllık turnover; roller/birimler bazında risk; sektörel rekabet etkisi (maaş/işgücü piyasası verisi ile).
+20) SH3.1 — Çalışan başına yıllık eğitim süresi
+Kanıt: LMS raporları, eğitim katılım formları, sertifikalar.
+YZ Analizi: Kişi başı saat; kritik rol bazında boşluk; sektör gereksinimine uyum (örn. gıda için HACCP modülleri).
+21) SH3.2 — Performans değerlendirme kapsam oranı
+Kanıt: İK performans sistemi çıktıları, kalibrasyon tutanakları.
+YZ Analizi: Kapsam oranı; puan dağılımı anomali; hedefle uyum.
+22) SH3.3 — OEE / benzeri etkinlik göstergesi
+Kanıt: MES/SCADA logları, vardiya duruş kayıtları, parçabaşı sayaçlar.
+YZ Analizi: OEE=K×P×K; kayıp ağacı; sektör referanslarıyla gap.
+23) SH3.4 — İç/dış denetim uygunsuzluk/ikaz sayısı
+Kanıt: Denetim raporları (ISO, mali, idari), CAPA listeleri.
+YZ Analizi: Uygunsuzlukların kritikliği; kök neden kümeleme; kapanış süresi analizi.
+24) SH3.5 — Stratejik hedeflere genel ulaşma oranı
+Kanıt: OKR/KPI panoları, stratejik plan izleme dosyaları.
+YZ Analizi: Hedef gerçekleşme RAG; stratejik katkı matrisleri; sektör öncelikleriyle hizalama.
+25) SH3.6 — Alınan belge/akreditasyon sayısı (ISO, EFQM vb.)
+Kanıt: Sertifikalar/PDF, akreditasyon denetim raporları.
+YZ Analizi: Kapsam & süreklilik (geçerlilik tarihi); sektör için kritik sertifikalar ısısı (gıda IFS/BRC, otomotiv IATF vb.).
+26) SH3.6 — Çalışan başına onaylanmış iyileştirme önerisi sayısı
+Kanıt: Kaizen/Öneri sistemi kayıtları, kabul/ödül listeleri.
+YZ Analizi: Öneri hızı (100 çalışan/ay); tasarruf etkisi tahmini; tema madenciliği.
+27) SH3.7 — CRM/ERP/LMS vb. dijital platform kullanım oranı
+Kanıt: Sistem kullanım logları (oturum, aktif kullanıcı, işlem hacmi), lisans listeleri.
+YZ Analizi: Aktiflik oranı, özellik kullanım derinliği; sektörler için kritik modül kullanımı (örn. izlenebilirlik).
+28) SH3.8 — Diğer MF’lerce benimsenen iyi pratik sayısı
+Kanıt: İyi uygulama kayıtları, paylaşım oturumu tutanakları, referanslar.
+YZ Analizi: Benimsenme oranı; benimsendiği sektör/kapsam; etki puanı.
+ 
+SH4 — Paydaş Etkisi, Marka & İşbirlikleri
+29) SH4.1 — Paydaş geri bildirimlerinden iyileştirme yapılan süreç/hizmet sayısı
+Kanıt: Geri bildirim sistemi (ticket/CX), değişiklik kayıtları, versiyon notları.
+YZ Analizi: Geri bildirim→aksiyon iz sürme; VOC tema analizi; sektör bazlı memnuniyet farkları.
+30) SH4.2 — Marka tanınırlık oranı
+Kanıt: Hedef kitle anketi, dijital erişim istatistikleri, medya ölçüm panoları.
+YZ Analizi: Tanınırlık skoru; frekans erişim; sektör spesifik bilinirlik boşlukları.
+31) SH4.2 — Olumlu haber/içerik sayısı
+Kanıt: Basın kupürleri, sosyal medya duygu analizi çıktıları.
+YZ Analizi: Duygu sınıflandırma; içerik kaynak kalitesi; sektör odaklı görünürlük.
+32) SH4.3 — Müdahale sonrası ortalama verimlilik artışı (%)
+Kanıt: Ön/son üretkenlik ölçümleri (saat başı çıktı, hurda/yeniden işleme), VSM/SMED/TPM raporları.
+YZ Analizi: Ön son fark (bağlam değişkenleriyle normalize); sektörel kıyas (örn. metalde çevrim süresi).
+33) SH4.3 — Hizmetleri tavsiye etme oranı (NPS)
+Kanıt: NPS anket ham verisi, yorumlar.
+YZ Analizi: NPS, gerekçe temaları; sektör/ölçek bazında dağılım; NPS→tekrar satın alma korelasyonu.
+34) SH4.3 — Tekrar hizmet alan KOBİ oranı
+Kanıt: CRM sipariş/yenileme kayıtları.
+YZ Analizi: Kohort tekrar oranı; sektör ve hizmet tipi bazında elde tutma eğrileri.
+35) SH4.4 — Çalışan memnuniyeti/bağlılığı
+Kanıt: Çalışan anketleri (eNPS), İK devir verisi, odak grup notları.
+YZ Analizi: Memnuniyet sürücüleri (SHAP/anket maddeleri); birim/rol farkları; sektör yetenek piyasası etkisi.
+36) SH4.5 — Sosyal sorumluluk faydalanan kişi sayısı
+Kanıt: Proje faydalanıcı listeleri, etkinlik kayıtları, katılım formları.
+YZ Analizi: Sayı doğrulama, hedef kitle uyumu; etki ölçümü (ör. beceri kazanımı anketi).
+37) SH4.6 — MF hizmetlerinden yararlanıp ödül/derece alan işletme sayısı
+Kanıt: Ödül belgeleri, başvuru dosyaları, MF referans yazıları.
+YZ Analizi: Ödül türü/itibarı; müdahale→ödül olasılık modeli (lojistik regresyon).
+38) SH4.7 — Üniversite/AR GE ile yürütülen aktif ortak proje sayısı
+Kanıt: Proje sözleşmeleri, TÜBİTAK/AB kayıtları, proje planı ve ilerleme raporları.
+YZ Analizi: Proje TRL aşaması, bütçe ve partner türüne göre ısı haritası; sektör odağı.
+39) SH4.7 — Birlikte geliştirilen ürün/hizmet, metodoloji veya yayın sayısı
+Kanıt: Yayın DOİ’leri, prototip kayıtları, metod dokümanları, kütüphane kayıtları.
+YZ Analizi: Atıf/etki; sektörel uygulanabilirlik sınıflaması; bilgi erişim puanı.
+40) SH4.8 — Uluslararası kurumlarla stratejik ortaklık sayısı
+Kanıt: MoU/işbirliği anlaşmaları, ortak etkinlik protokolleri, konsorsiyum listeleri.
+YZ Analizi: Ortaklık derinlik skoru (süre, ortak faaliyet sayısı); bölge/ülke ve sektör odağı.
+41) SH4.8 — Uluslararası benchmark analizi sayısı
+Kanıt: Benchmark raporları, veri setleri, karşılaştırma metodolojisi dosyası.
+YZ Analizi: Eşleştirilmiş kıyas (ölçeklendirme/normalize); sektörel gap analizi ve yol haritası önerileri.
+ 
+YZ Modeli: Uçtan Uca İş Akışı
+1.	İçe Aktarım & Doğrulama: Şema kontrolü, PII maskeleme, tutarlılık/çift kayıt temizliği.
+2.	Hesaplama: KPI formülleri, ön son fark, normalize (mevsimsellik/hacim).
+3.	Sektörel Kırılım: groupby(NACE); ağırlıklandırma (çalışan/ciro); k anonimlik (n≥5).
+4.	Kıyaslama: İç (MF ağı) & dış (sektör referansı) benchmark.
+5.	Nedensel ipuçları: Müdahale zaman damgalarıyla farkların farkı/eşleşmiş örnek; etki büyüklüğü.
+6.	Öneri Motoru: Zayıf KPI×sektör hücreleri için modül öneri eşleşmesi (VSM, 5S, SMED, TPM, MES, Enerji Yön., QMS, CRM vb.).
+7.	Görselleştirme: KPI kartları, sektör ısı haritaları, trend ve kohort grafikleri.
+ 
+Teslim Şablonları
+•	KPI Kanıt Kontrol Listesi (XLSX): Her KPI için gerekli alanlar ve örnek dosya isimlendirme (örn. SH2.3_fatura_satir_2025Q1.xlsx).
+•	Veri Sözlüğü (JSON/XLSX): Alan tanımları, birimler, validasyon kuralları.
+•	Rapor Şablonu (PPTX/HTML): MF × KPI × sektör kırılımı özetleri + öneriler.
+Sektörel kırılımlar tüm KPI’larda mümkündür; veri setine NACE_4d (veya en az NACE_2d) alanı eklenmesi yeterlidir. YZ modeli otomatik olarak güvenli hücre kurallarıyla kırılım üretir ve karşılaştırır.
+

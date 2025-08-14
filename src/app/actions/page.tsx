@@ -49,6 +49,15 @@ interface PhaseStats {
   status: 'completed' | 'on-track' | 'at-risk' | 'behind'
 }
 
+interface ActionBudget {
+  id?: string
+  actionId: string
+  plannedAmount: number
+  actualAmount: number
+  currency: string
+  capexOpex: string
+}
+
 export default function ActionManagement() {
   const [actions, setActions] = useState<Action[]>([])
   const [phaseStats, setPhaseStats] = useState<PhaseStats[]>([])
@@ -58,6 +67,8 @@ export default function ActionManagement() {
     priority: '',
     search: ''
   })
+  const [budgets, setBudgets] = useState<Record<string, ActionBudget>>({})
+  const [editingBudget, setEditingBudget] = useState<Record<string, boolean>>({})
 
   // Kullanıcı bağlamını al
   const userContext = getCurrentUser()
@@ -98,18 +109,36 @@ export default function ActionManagement() {
     if (!userContext || !apiParams) return
 
     try {
-      const [actionsRes, phasesRes] = await Promise.all([
+      const [actionsRes, phasesRes, budgetsRes] = await Promise.all([
         fetch(`/api/actions?${apiParams}`),
-        fetch(`/api/actions/phases?${apiParams}`)
+        fetch(`/api/actions/phases?${apiParams}`),
+        fetch(`/api/actions/budgets`)
       ])
 
-      const [actionsData, phasesData] = await Promise.all([
+      const [actionsData, phasesData, budgetsData] = await Promise.all([
         actionsRes.json(),
-        phasesRes.json()
+        phasesRes.json(),
+        budgetsRes.json()
       ])
 
       setActions(actionsData)
       setPhaseStats(phasesData)
+      if (Array.isArray(budgetsData)) {
+        const map: Record<string, ActionBudget> = {}
+        budgetsData.forEach((b: any) => {
+          if (b && b.actionId) {
+            map[b.actionId] = {
+              id: b.id,
+              actionId: b.actionId,
+              plannedAmount: Number(b.plannedAmount || 0),
+              actualAmount: Number(b.actualAmount || 0),
+              currency: b.currency || 'TRY',
+              capexOpex: b.capexOpex || 'OPEX'
+            }
+          }
+        })
+        setBudgets(map)
+      }
     } catch (error) {
       console.error('Error fetching action data:', error)
     } finally {
@@ -157,6 +186,66 @@ export default function ActionManagement() {
     return matchesPhase && matchesPriority && matchesSearch
   })
 
+  const startEditBudget = (actionId: string) => {
+    setEditingBudget(prev => ({ ...prev, [actionId]: true }))
+    if (!budgets[actionId]) {
+      setBudgets(prev => ({
+        ...prev,
+        [actionId]: {
+          actionId,
+          plannedAmount: 0,
+          actualAmount: 0,
+          currency: 'TRY',
+          capexOpex: 'OPEX'
+        }
+      }))
+    }
+  }
+
+  const changeBudgetField = (actionId: string, field: keyof ActionBudget, value: string) => {
+    setBudgets(prev => ({
+      ...prev,
+      [actionId]: {
+        ...prev[actionId],
+        [field]: field === 'plannedAmount' || field === 'actualAmount' ? Number(value) : value
+      }
+    }))
+  }
+
+  const saveBudget = async (actionId: string) => {
+    try {
+      const b = budgets[actionId]
+      const res = await fetch('/api/actions/budgets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          actionId,
+          plannedAmount: b?.plannedAmount ?? 0,
+          actualAmount: b?.actualAmount ?? 0,
+          currency: b?.currency || 'TRY',
+          capexOpex: b?.capexOpex || 'OPEX'
+        })
+      })
+      if (res.ok) {
+        const saved = await res.json()
+        setBudgets(prev => ({
+          ...prev,
+          [actionId]: {
+            id: saved.id,
+            actionId: saved.actionId,
+            plannedAmount: Number(saved.plannedAmount || 0),
+            actualAmount: Number(saved.actualAmount || 0),
+            currency: saved.currency || 'TRY',
+            capexOpex: saved.capexOpex || 'OPEX'
+          }
+        }))
+        setEditingBudget(prev => ({ ...prev, [actionId]: false }))
+      }
+    } catch (e) {
+      console.error('Budget save error:', e)
+    }
+  }
+
   // Group actions by strategic target
   const groupedActions = filteredActions.reduce((acc, action) => {
     const key = action.strategicTarget.code
@@ -172,11 +261,25 @@ export default function ActionManagement() {
   }, {} as Record<string, { code: string; title: string; actions: typeof filteredActions }>)
 
   const getPriorityColor = (priority: string) => {
+    // Türkçe öncelik değerlerini destekle
+    const norm = (priority || '').toUpperCase()
+      .replace('YÜKSEK', 'HIGH')
+      .replace('ORTA', 'MEDIUM')
+      .replace('DÜŞÜK', 'LOW')
+      .replace('KRİTİK', 'CRITICAL')
     switch (priority) {
-      case 'CRITICAL': return 'text-red-600 bg-red-100'
-      case 'HIGH': return 'text-orange-600 bg-orange-100'
-      case 'MEDIUM': return 'text-blue-600 bg-blue-100'
-      case 'LOW': return 'text-gray-600 bg-gray-100'
+      case 'CRITICAL':
+      case 'KRİTİK':
+        return 'text-red-600 bg-red-100'
+      case 'HIGH':
+      case 'YÜKSEK':
+        return 'text-orange-600 bg-orange-100'
+      case 'MEDIUM':
+      case 'ORTA':
+        return 'text-blue-600 bg-blue-100'
+      case 'LOW':
+      case 'DÜŞÜK':
+        return 'text-gray-600 bg-gray-100'
       default: return 'text-gray-600 bg-gray-100'
     }
   }
@@ -375,6 +478,97 @@ export default function ActionManagement() {
                                 <span>Faz: {action.phase?.name || 'Atanmamış'}</span>
                                 <span>Adım: {action.completedSteps}/{action.totalSteps}</span>
                               </div>
+                              {/* Bütçe Kartı */}
+                              <div className="mt-4 p-3 bg-white border rounded-md">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="text-sm font-medium text-gray-700">Bütçe (Plan/Gerçek)</div>
+                                  {!editingBudget[action.id] ? (
+                                    <Button size="sm" variant="outline" onClick={() => startEditBudget(action.id)}>Düzenle</Button>
+                                  ) : (
+                                    <div className="space-x-2">
+                                      <Button size="sm" variant="outline" onClick={() => setEditingBudget(prev => ({ ...prev, [action.id]: false }))}>İptal</Button>
+                                      <Button size="sm" onClick={() => saveBudget(action.id)}>Kaydet</Button>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
+                                  <div>
+                                    <label className="block text-gray-600 mb-1">Plan</label>
+                                    <input
+                                      type="number"
+                                      className="w-full p-2 border rounded"
+                                      value={budgets[action.id]?.plannedAmount ?? 0}
+                                      onChange={(e) => changeBudgetField(action.id, 'plannedAmount', e.target.value)}
+                                      disabled={!editingBudget[action.id]}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-gray-600 mb-1">Gerçek</label>
+                                    <input
+                                      type="number"
+                                      className="w-full p-2 border rounded"
+                                      value={budgets[action.id]?.actualAmount ?? 0}
+                                      onChange={(e) => changeBudgetField(action.id, 'actualAmount', e.target.value)}
+                                      disabled={!editingBudget[action.id]}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-gray-600 mb-1">Para Birimi</label>
+                                    <select
+                                      className="w-full p-2 border rounded"
+                                      value={budgets[action.id]?.currency ?? 'TRY'}
+                                      onChange={(e) => changeBudgetField(action.id, 'currency', e.target.value)}
+                                      disabled={!editingBudget[action.id]}
+                                    >
+                                      <option value="TRY">TRY</option>
+                                      <option value="USD">USD</option>
+                                      <option value="EUR">EUR</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-gray-600 mb-1">Tür</label>
+                                    <select
+                                      className="w-full p-2 border rounded"
+                                      value={budgets[action.id]?.capexOpex ?? 'OPEX'}
+                                      onChange={(e) => changeBudgetField(action.id, 'capexOpex', e.target.value)}
+                                      disabled={!editingBudget[action.id]}
+                                    >
+                                      <option value="OPEX">OPEX</option>
+                                      <option value="CAPEX">CAPEX</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Aktivite Listesi (Adımlar) */}
+                              {Array.isArray((action as any).steps) && (
+                                <div className="mt-4 p-3 bg-white border rounded-md">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="text-sm font-medium text-gray-700">Aktiviteler</div>
+                                    <details>
+                                      <summary className="text-sm text-blue-600 cursor-pointer">Yeni Aktivite</summary>
+                                      <NewStepForm actionId={action.id} onSaved={() => fetchData()} />
+                                    </details>
+                                  </div>
+                                  <div className="space-y-3 text-sm">
+                                    {(action as any).steps.map((s: any) => (
+                                      <div key={s.id} className="p-2 border rounded">
+                                        <div className="flex justify-between">
+                                          <div className="font-medium">{s.title}</div>
+                                          <div className="text-xs text-gray-500">{s.period || '—'}</div>
+                                        </div>
+                                        <div className="text-gray-600">{s.description}</div>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2 text-xs">
+                                          <div>Plan: {Number(s.plannedCost || 0).toLocaleString('tr-TR')} {s.currency}</div>
+                                          <div>Gerçek: {Number(s.actualCost || 0).toLocaleString('tr-TR')} {s.currency}</div>
+                                          <div>Tür: {s.capexOpex}</div>
+                                          <div>Durum: {s.status}</div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                             <div className="ml-6 min-w-[200px]">
                               <div className="flex items-center justify-between mb-2">
@@ -431,3 +625,76 @@ export default function ActionManagement() {
     </div>
   )
 } 
+
+function NewStepForm({ actionId, onSaved }: { actionId: string, onSaved: () => void }) {
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [period, setPeriod] = useState('2024-Q4')
+  const [plannedCost, setPlannedCost] = useState('0')
+  const [actualCost, setActualCost] = useState('0')
+  const [currency, setCurrency] = useState('TRY')
+  const [capexOpex, setCapexOpex] = useState('OPEX')
+  const [status, setStatus] = useState('PENDING')
+  const [saving, setSaving] = useState(false)
+
+  const save = async () => {
+    if (!title.trim()) return
+    setSaving(true)
+    try {
+      await fetch('/api/actions/steps', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          actionId,
+          title,
+          description,
+          period,
+          plannedCost: Number(plannedCost || 0),
+          actualCost: Number(actualCost || 0),
+          currency,
+          capexOpex,
+          status
+        })
+      })
+      setTitle('')
+      setDescription('')
+      setPlannedCost('0')
+      setActualCost('0')
+      onSaved()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="mt-2 p-3 border rounded grid grid-cols-1 md:grid-cols-3 gap-2">
+      <input className="p-2 border rounded" placeholder="Başlık" value={title} onChange={(e) => setTitle(e.target.value)} />
+      <input className="p-2 border rounded" placeholder="Açıklama" value={description} onChange={(e) => setDescription(e.target.value)} />
+      <select className="p-2 border rounded" value={period} onChange={(e) => setPeriod(e.target.value)}>
+        <option value="2024-Q4">2024-Q4</option>
+        <option value="2024-Q3">2024-Q3</option>
+        <option value="2024-Q2">2024-Q2</option>
+        <option value="2024-Q1">2024-Q1</option>
+      </select>
+      <input className="p-2 border rounded" type="number" placeholder="Plan" value={plannedCost} onChange={(e) => setPlannedCost(e.target.value)} />
+      <input className="p-2 border rounded" type="number" placeholder="Gerçek" value={actualCost} onChange={(e) => setActualCost(e.target.value)} />
+      <select className="p-2 border rounded" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+        <option value="TRY">TRY</option>
+        <option value="USD">USD</option>
+        <option value="EUR">EUR</option>
+      </select>
+      <select className="p-2 border rounded" value={capexOpex} onChange={(e) => setCapexOpex(e.target.value)}>
+        <option value="OPEX">OPEX</option>
+        <option value="CAPEX">CAPEX</option>
+      </select>
+      <select className="p-2 border rounded" value={status} onChange={(e) => setStatus(e.target.value)}>
+        <option value="PENDING">Beklemede</option>
+        <option value="IN_PROGRESS">Devam Ediyor</option>
+        <option value="COMPLETED">Tamamlandı</option>
+        <option value="CANCELLED">İptal</option>
+        <option value="DELAYED">Gecikmiş</option>
+      </select>
+      <Button className="md:col-span-3" disabled={saving} onClick={save}>{saving ? 'Kaydediliyor...' : 'Ekle'}</Button>
+    </div>
+  )
+}

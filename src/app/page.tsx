@@ -66,7 +66,8 @@ export default function Home() {
   // Authentication kontrolü
   useEffect(() => {
     if (!isAuthenticated) {
-      window.location.href = '/login'
+      // Hızlı ve geri butonunda döngü yaratmayan yönlendirme
+      window.location.replace('/login')
       return
     }
   }, [isAuthenticated])
@@ -90,10 +91,55 @@ export default function Home() {
         activitiesRes.json()
       ])
 
+      // Dashboard: API'den gelen verileri UI beklentisine dönüştür (hızlı uyum)
       setStats(statsData)
-      setThemes(themesData)
-      setPhases(phasesData)
-      setActivities(activitiesData)
+
+      // Tema verileri: { name, value } -> toplam içindeki yüzde payı
+      const mappedThemes: ThemeData[] = Array.isArray(themesData)
+        ? (() => {
+            const total = themesData.reduce((sum: number, t: any) => sum + (typeof t.value === 'number' ? t.value : 0), 0)
+            return themesData.map((t: any) => {
+              const count = typeof t.value === 'number' ? t.value : 0
+              const score = total > 0 ? Math.round((count / total) * 100) : 0
+              const status: ThemeData['status'] = score >= 75
+                ? 'excellent'
+                : score >= 60
+                  ? 'good'
+                  : score >= 40
+                    ? 'at-risk'
+                    : 'critical'
+              return {
+                name: t.name ?? 'Tema',
+                score,
+                status,
+                kpiCount: count
+              }
+            })
+          })()
+        : []
+      setThemes(mappedThemes)
+
+      // Faz verileri: { name, completion, actionCount } -> { phase, completionRate, count }
+      const mappedPhases: PhaseData[] = Array.isArray(phasesData)
+        ? phasesData.map((p: any) => ({
+            phase: p.name ?? 'Faz',
+            completionRate: typeof p.completion === 'number' ? p.completion : 0,
+            count: typeof p.actionCount === 'number' ? p.actionCount : 0
+          }))
+        : []
+      setPhases(mappedPhases)
+
+      // Aktivite verileri: mevcut şemayı UI'ın beklediği şemaya dönüştür
+      const mappedActivities: Activity[] = Array.isArray(activitiesData)
+        ? activitiesData.map((a: any) => ({
+            id: a.id ?? `${a.type}-${a.time}`,
+            type: a.type === 'kpi' ? 'kpi_entry' : 'action_update',
+            description: a.description || a.title || '',
+            timestamp: a.time || a.timestamp || '',
+            user: a.user || 'Sistem'
+          }))
+        : []
+      setActivities(mappedActivities)
     } catch (error) {
       console.error('Error fetching dashboard data:', error)
     } finally {
@@ -110,6 +156,18 @@ export default function Home() {
       await logout()
     }
   }, [])
+
+  // Yetkisiz kullanıcıyı anında yönlendir ve hafif bir ekran göster
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-pulse rounded-full h-6 w-6 bg-blue-600 mx-auto mb-3"></div>
+          <p className="mt-1 text-gray-600">Giriş sayfasına yönlendiriliyor...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (!userContext || loading) {
     return (
@@ -256,15 +314,15 @@ export default function Home() {
               <button className="text-blue-600 border-b-2 border-blue-600 pb-2 font-medium">
                 Performans
               </button>
-              <button className="text-gray-500 pb-2 hover:text-gray-700">
+              <Link href="/analytics" className="text-gray-500 pb-2 hover:text-gray-700">
                 Trend Analizi
-              </button>
-              <button className="text-gray-500 pb-2 hover:text-gray-700">
+              </Link>
+              <Link href="/analytics" className="text-gray-500 pb-2 hover:text-gray-700">
                 Departman
-              </button>
-              <button className="text-gray-500 pb-2 hover:text-gray-700">
+              </Link>
+              <Link href="/analytics" className="text-gray-500 pb-2 hover:text-gray-700">
                 Raporlar
-              </button>
+              </Link>
             </div>
           </div>
 

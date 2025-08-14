@@ -11,6 +11,7 @@ export default function Sidebar() {
 
   const items = [
     { name: 'Dashboard', href: '/', icon: BarChart3, visible: true },
+    { name: 'Analitik', href: '/analytics', icon: TrendingUp, visible: true },
     { name: 'KPI Girişi', href: '/kpi-entry', icon: Target, visible: userContext?.userRole === 'MODEL_FACTORY' },
     { name: 'Eylem / Faz İzleme', href: '/actions', icon: Calendar, visible: userContext?.userRole === 'UPPER_MANAGEMENT' || userContext?.userRole === 'ADMIN' },
     { name: 'Strateji İzleme', href: '/strategy', icon: TrendingUp, visible: userContext?.userRole === 'UPPER_MANAGEMENT' || userContext?.userRole === 'ADMIN' },

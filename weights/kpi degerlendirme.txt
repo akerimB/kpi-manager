@@ -1,0 +1,75 @@
+Model Fabrika KPI Değerlendirme — Çalışma Özeti ve Kaynak Raporu
+Amaç: Türkiye’deki aktif ve planlanan Model Fabrikalar (MF) için; il düzeyindeki sektörel yoğunlaşma ve ekonomik büyüklüğü dikkate alan, KPI’lar üzerinden hedef ağırlıklandırma ve başarı değerlendirme metodolojisi oluşturmak.
+ 
+1) Başlangıç KPI seti (girdi)
+•	Kullanıcı tarafından sağlanan 41 KPI ve SH kodları (SH1.1…SH4.8) esas alınmıştır.
+•	Bu liste, KPI Sözlüğü formatına dönüştürülmüş; her KPI için sütun (SH), tip (çıktı/sonuç), birim, hedef yönü (↑/↓), önerilen formül, veri kaynağı, raporlama sıklığı ve sorumlu rol alanları eklenmiştir.
+•	Üretilen dosya: MF_KPI_Dictionary.xlsx
+Not: KPI Sözlüğü, ileride hedef/baz değer, sorumlular ve dönemsel hedeflerin açıkça izlenmesine temel olacak şekilde tasarlanmıştır.
+ 
+2) Ağırlıklandırma Metodolojisi — evrimsel adımlar
+2.1) v1 (kural tabanlı başlangıç)
+•	İl bazında dört ana etken tanımlandı: Sektör Uyumu, Ekonomik Büyüklük, Olgunluk (Aktif/Planlanan), Yeşil Yoğunluk.
+•	Aktif MF’lerde temel sütun ağırlıkları SH1:0.20, SH2:0.25, SH3:0.35, SH4:0.20; planlanan MF’lerde SH1:0.35, SH2:0.20, SH3:0.25, SH4:0.20.
+•	Bu tabanlar, kompozit bir katsayıyla (α: sektör; β: ekonomi; γ: olgunluk; δ: yeşil) çarpıldı ve MF bazında normalize edildi.
+•	SH sütun ağırlıkları, sütun altındaki SH_code’lara (ör. SH1.1…SH1.6) KPI sayısı paylarına göre dağıtıldı.
+•	Üretilen dosya: MF_Target_Weights.xlsx
+2.2) v2 (veri-tabanlı sürüm)
+•	Ekonomik Büyüklük veri temelli hale getirildi: 2024 il ihracatı (M$) ve TÜİK GSYH sınıfları (High/Medium/Low) harmanlanarak Economic_Size_Index (0.90–1.10) üretildi (0.7 ihracat + 0.3 GSYH sınıfı karışımı).
+•	Sektör Uyumu için Data_SectorShares şablonu eklendi: İl×Sektör payları (toplam=1). MF’nin odak sektörlerine ait payların toplamı 0–1’den 0.90–1.10 bandına ölçeklendi.
+•	Weights_Wide ve Dashboard ön-şablonları eklendi.
+•	Üretilen dosya: MF_Target_Weights_v2_DataDriven.xlsx
+2.3) v3 (kaynaklarla doldurulmuş + Dashboard & Hedef Kartları)
+•	Data_SectorShares_filled.xlsx ile il×sektör payları veri/“estimate” etiketli olarak dolduruldu; paylar il bazında 1’e normalize edildi.
+•	v2 metodolojisi bu tabloyla beslendi ve Sektör_Uyumu veri-tabanlı hesaplandı.
+•	Dashboard (R/G/Y): Achievements_Wide’a girilen gerçekleşme (%) ile ağırlıkların SUMPRODUCT’ı otomatik hesaplanıyor; varsayılan eşikler G≥75, Y≥50.
+•	Hedef_Kartları: MF başına en düşük 5 SH_code için aksiyon alanları (Öneri Notu, Sorumlu/Termin, İlerleme%).
+•	Üretilen dosya: MF_Target_Weights_v3_DataBacked.xlsx
+2.4) v4 (parametrik + duyarlılık + plan kıyası + trend)
+•	MODEL_PARAMS sayfası: α–β–γ–δ, R/G/Y eşikleri (varsayılan G≥80, Y≥60) ve plan uyarı faktörü (varsayılan %90) tek yerden değiştirilebilir.
+•	Plans_Wide: SH_code bazında plan (%) girişi; Dashboard’da Ach vs Plan kıyası → “OK/Risk” uyarısı.
+•	Achievements_History: Son 6 ay için gerçekleşme trendi; Dashboard’da sparkline.
+•	Sensitivity_Pillar: 4 senaryo (Sektör_Uyumu ±%10, α=0.50, δ=0.15) ile SH1–SH4 ağırlıklarının MF bazında değişimi.
+•	Üretilen dosya: MF_Target_Weights_v4_Param_Sensitivity.xlsx
+ 
+3) Kullanılan/veriye dayanak yapılan kaynaklar (özet)
+Aşağıdakiler, il/kalem bazında payları doldururken referans aldığımız kamuya açık rapor ve bülten kategorileridir. Bazı illerde doğrudan yüzde/veri bulunamadığı yerlerde, sanayi küme profilleri ve birlik/oda istatistiklerinden temkinli tahmin (estimate) yapılmış, “Method” sütunuyla işaretlenmiştir.
+•	TİM (Türkiye İhracatçılar Meclisi) il bazlı yıllık ihracat istatistikleri (2024 toplamları) ve birlik bültenleri. (Nisan 2025’ten itibaren alt mal grubu tabloları sınırlı olduğundan il/birlik/oda raporlarıyla desteklenmiştir.)
+•	TÜİK il/bölge düzeyi GSYH ve kişi başı GSYH göstergeleri (2023 referansı) → GSYH sınıfı (High/Medium/Low) ataması.
+•	ASO/OSB-Oda Raporları (ör. Ankara Sanayi Odası; il bazlı sanayi-ihracat özetleri ve alt sektör grafikleri).
+•	ADASO/ATO/DTO/DENİB/GAİB/HBİB vb.: Adana (kimya/tekstil/çelik vb. yüzdeler), Denizli (tekstil, kablo/elektrik, demir-dışı metal, tarım, mermer), Gaziantep (halı ve hububat-bakliyat tutarları), Ege/Akdeniz/Doğu Karadeniz birlik ve odalarının yıllık/aylık bültenleri.
+Örnek veri bağları (dosyalara yansıtılan):
+•	Kocaeli: otomotiv, kimya, demir-dışı metaller, çelik, elektrik-elektronik kalemlerinin yıllık değer/payları.
+•	Bursa: otomotiv (~7.6 M$), hazır giyim, tekstil, makine kalemlerinin toplam il ihracatına oranlanması.
+•	Denizli: tekstil %32, elektrik-elektronik %20, demir-dışı %14, tarım %8, mermer %6.
+•	Adana: kimya %19.49, tekstil %16.02, hububat-bakliyat %12.46, elektrik-elektronik %4.74, makine %4.10, çelik %7.12.
+•	Gaziantep: halı ~1.97 M$ (tekstil), hububat-bakliyat ~2.88 M$ (gıda) + diğer kalemler temkinli dağıtım.
+Not: Bu kaynaklar, dosyaların ilgili sayfalarında Data_Econ, Data_SectorShares, MF_Focus ve MF_Params_DERIVED üzerinden modele yedirilmiştir. “estimate” işaretli iller, resmi bülten/güncel tablo geldikçe hızlıca güncellenebilir.
+ 
+4) Üretilen dosyalar (bu oturum)
+•	Data_SectorShares_filled.xlsx — İl×Sektör×Pay_(0–1) + Method (data/mixed/estimate). Paylar il bazında 1’e normalize.
+•	MF_Target_Weights_v4_Param_Sensitivity.xlsx — MODEL_PARAMS, MF_Params_DERIVED, Pillar/Target/Weights_Wide, Achievements_Wide, Plans_Wide, Achievements_History, Dashboard, Sensitivity_Pillar.
+İndirilebilir sürümler konuşmamızla birlikte paylaşıldı. Dosyalar, paylaşım ortamınıza (örn. Sheets/Drive) da aktarılabilir.
+ 
+5) Nasıl kullanacaksınız? (özet)
+1.	Data_SectorShares_filled.xlsx’te il×sektör paylarını veriyle teyit edin/güncelleyin (toplam=1).
+2.	MF_Target_Weights_v4_Param_Sensitivity.xlsx’te:
+o	Achievements_Wide: SH_code bazında gerçekleşme (%) girin.
+o	Plans_Wide: Plan (%) girin (varsayılan 100).
+o	MODEL_PARAMS: α–β–γ–δ, R/G/Y eşiği, plan uyarı faktörünü kurum politikasına göre ayarlayın.
+o	Dashboard: Toplam puan, R/G/Y, OK/Risk ve 6 aylık trend otomatik hesaplanır.
+o	Sensitivity_Pillar: politika/senaryo etkilerini SH1–SH4 düzeyinde görün.
+ 
+6) Varsayımlar, sınırlar ve riskler
+•	Sektör payları bazı illerde kısmen tahmine dayalıdır (işaretlenmiştir). Resmî bülten/rapor geldikçe paylar doğrudan güncellenmelidir.
+•	Economic_Size_Index 0.7 * ihracat + 0.3 * GSYH sınıfı şeklinde harmanlanmıştır; farklı ağırlıklar için MODEL_PARAMS üzerinden kolaylıkla kalibrasyon mümkündür.
+•	Yeşil yoğunluk şimdilik endüstri profiline göre sabit katsayıdır; gerçek enerji/emisyon verileri geldikçe il bazlı dinamik hale getirilebilir.
+ 
+7) Sonraki adımlar (öneri)
+•	“estimate” etiketli illerde oda/birlik/ajans kaynaklarından 2024 (gerekirse 2025 H1) sektörel paylarıyla tabloyu tam veri-tabanlı hâle getirme.
+•	MF bazında hedef kartları için otomatik iş planı üretimi (SH_code → çekirdek modüller → 90 günlük yol haritası).
+•	Duyarlılık sekmesine bütçe/kaynak kısıtları ve “yeşil politika” senaryolarının eklenmesi.
+ 
+8) Özet mesaj
+Bu çalışma, Model Fabrikaların bölgesel bağlamını (sektör kompozisyonu ve ekonomik büyüklük) KPI hedefleme ve başarı ölçümüne doğrudan bağlayan ölçeklenebilir bir çerçeve sunar. Parametrik yapı sayesinde yeni verilerle hızlı güncelleme ve politika değişikliklerine duyarlı analiz mümkündür.
+
