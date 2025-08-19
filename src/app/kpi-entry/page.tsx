@@ -6,6 +6,9 @@ import Link from 'next/link';
 import { ArrowLeft, Save, TrendingUp, TrendingDown, Calendar, Factory, Search, AlertCircle, CheckCircle } from 'lucide-react';
 import { Upload, Paperclip, Trash2 } from 'lucide-react';
 import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, EVIDENCE_CATEGORIES } from '@/lib/evidence-config'
+import EvidenceUploadPanel from '@/components/evidence/EvidenceUploadPanel'
+import EvidenceListPanel from '@/components/evidence/EvidenceListPanel'
+import EvidenceTemplateGuide from '@/components/evidence/EvidenceTemplateGuide'
 
 interface KPI {
   id: string;
@@ -75,9 +78,11 @@ export default function KPIEntryPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadItems, setUploadItems] = useState<Array<{ id: string; name: string; progress: number }>>([])
   const [evidenceFilters, setEvidenceFilters] = useState<Record<string, string>>({})
+  const [analyzingIds, setAnalyzingIds] = useState<Record<string, boolean>>({})
 
   // Kullanıcı bağlamını al
-  const userContext = getCurrentUser()
+  const [userContext, setUserContext] = useState<any>(null)
+  const [isClient, setIsClient] = useState(false)
 
   // Memoized values to prevent unnecessary re-renders
   const isAuthenticated = useMemo(() => !!userContext, [userContext])
@@ -86,13 +91,24 @@ export default function KPIEntryPage() {
     [userContext]
   )
 
-  // Authentication kontrolü
   useEffect(() => {
-    if (!isAuthenticated) {
-      window.location.href = '/login'
+    setIsClient(true)
+    setUserContext(getCurrentUser())
+  }, [])
+
+  // Authentication kontrolü - only after userContext is properly set
+  useEffect(() => {
+    if (isClient && userContext === null) {
+      // Only redirect if we've checked and userContext is definitely null
+      setTimeout(() => {
+        const user = getCurrentUser()
+        if (!user) {
+          window.location.href = '/login'
+        }
+      }, 100)
       return
     }
-  }, [isAuthenticated])
+  }, [isClient, userContext])
 
   // Memoized fetch function
   const fetchInitialData = useCallback(async () => {
@@ -328,13 +344,14 @@ export default function KPIEntryPage() {
           factoryId: selectedFactoryData.id,
           period: selectedPeriod,
           fileName: file.name,
-          fileType: file.type || 'application/octet-stream',
+          fileType: file.name.split('.').pop()?.toLowerCase() || 'unknown',
           fileSize: file.size,
           fileUrl: publicUrl,
           description: description || '',
           category: category || 'OTHER',
           uploadedBy: userContext?.user?.id,
           fileKey: key,
+          // AI will extract metadata from file content
         })
       })
 
@@ -344,6 +361,40 @@ export default function KPIEntryPage() {
           ...prev,
           [kpiId]: [created, ...(prev[kpiId] || [])]
         }))
+      } else {
+        const errorData = await res.json()
+        
+        // Validation hatası özel işleme
+        if (errorData.validationErrors || errorData.validationWarnings) {
+          let message = '❌ Evidence Validation Hatası:\n\n'
+          
+          if (errorData.validationErrors?.length > 0) {
+            message += '🚫 Hatalar:\n'
+            errorData.validationErrors.forEach((error: string) => {
+              message += `• ${error}\n`
+            })
+          }
+          
+          if (errorData.validationWarnings?.length > 0) {
+            message += '\n⚠️ Uyarılar:\n'
+            errorData.validationWarnings.forEach((warning: string) => {
+              message += `• ${warning}\n`
+            })
+          }
+          
+          if (errorData.suggestions?.length > 0) {
+            message += '\n💡 Öneriler:\n'
+            errorData.suggestions.forEach((suggestion: string) => {
+              message += `• ${suggestion}\n`
+            })
+          }
+          
+          message += `\n📊 Validation Skoru: ${errorData.validationScore || 0}/100`
+          
+          alert(message)
+        } else {
+          alert(errorData.error || 'Evidence yükleme hatası')
+        }
       }
     } finally {
       setUploading(false);
@@ -360,6 +411,24 @@ export default function KPIEntryPage() {
         }))
       }
     } catch {}
+  }
+
+  const handleEvidenceAnalyze = async (kpiId: string, evidenceId: string) => {
+    try {
+      setAnalyzingIds(prev => ({ ...prev, [evidenceId]: true }))
+      const res = await fetch('/api/kpi-evidence/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('authToken')}` },
+        body: JSON.stringify({ evidenceId })
+      })
+      const data = await res.json()
+      const summary = data?.summary || 'Analiz sonucu alınamadı'
+      alert(summary)
+    } catch (e) {
+      alert('Analiz sırasında hata oluştu')
+    } finally {
+      setAnalyzingIds(prev => ({ ...prev, [evidenceId]: false }))
+    }
   }
 
   const getKPIValue = (kpiId: string) => {
@@ -395,6 +464,27 @@ export default function KPIEntryPage() {
   );
 
   const selectedFactoryName = factories.find(f => f.code === selectedFactory)?.name || selectedFactory;
+
+  if (!isClient) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  if (!userContext) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-blue-600 text-6xl mb-4">🔐</div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Giriş Gerekli</h2>
+          <p className="text-gray-600 mb-4">Bu sayfayı görüntülemek için giriş yapmanız gerekiyor.</p>
+          <a href="/login" className="text-blue-600 hover:text-blue-800">Giriş Yap</a>
+        </div>
+      </div>
+    )
+  }
 
   if (loading) {
     return (
@@ -640,16 +730,22 @@ export default function KPIEntryPage() {
                       />
                     </div>
 
-                    {/* Evidence Upload */}
+                    {/* KPI Template Guide */}
+                    <EvidenceTemplateGuide 
+                      kpiNumber={index + 1}
+                      kpiDescription={kpi.description}
+                      period={selectedPeriod}
+                    />
+
+                    {/* Evidence Upload - Simplified */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Kanıt Ekle</label>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 text-sm">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 text-sm">
                         <div>
                           <label className="block text-xs text-gray-600 mb-1">Kategori</label>
                           <select
                             className="w-full p-2 border border-gray-300 rounded-md"
                             onChange={(e) => {
-                              // kategori seçiminde upload sırasında kullanılacak; hızlı çözüm için data- attribute ile inputta saklanabilir
                               (window as any).__evidenceCategory = e.target.value
                             }}
                           >
@@ -658,8 +754,8 @@ export default function KPIEntryPage() {
                             ))}
                           </select>
                         </div>
-                        <div className="md:col-span-2">
-                          <label className="block text-xs text-gray-600 mb-1">Açıklama</label>
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">Açıklama (opsiyonel)</label>
                           <input
                             type="text"
                             className="w-full p-2 border border-gray-300 rounded-md"
@@ -693,7 +789,8 @@ export default function KPIEntryPage() {
                             />
                           </label>
                         </div>
-                        <p className="mt-2 text-xs text-gray-500">PDF, görüntü, Excel, Word vb. (maks 25MB/dosya)</p>
+                        <p className="mt-2 text-xs text-gray-500">PDF, görüntü, Excel, Word vb. (maks 25MB/dosya)<br/>
+                        <span className="text-blue-600">🤖 AI otomatik olarak sektör bilgilerini dosyadan çıkaracak</span></p>
                       </div>
                       {uploading && uploadItems.length > 0 && (
                         <div className="mt-2 space-y-2">
@@ -769,13 +866,23 @@ export default function KPIEntryPage() {
                                   'bg-gray-100 text-gray-700'
                                 }`}>{ev.category || 'OTHER'}</span>
                               </div>
-                              <button
-                                className="text-red-600 hover:text-red-700"
-                                onClick={() => handleEvidenceDelete(kpi.id, ev.id)}
-                                title="Sil"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+                              <div className="flex items-center gap-3">
+                                <button
+                                  className="text-blue-600 hover:text-blue-700 text-xs"
+                                  onClick={() => handleEvidenceAnalyze(kpi.id, ev.id)}
+                                  disabled={!!analyzingIds[ev.id]}
+                                  title="Analiz (YZ)"
+                                >
+                                  {analyzingIds[ev.id] ? 'Analiz...' : 'Analiz (YZ)'}
+                                </button>
+                                <button
+                                  className="text-red-600 hover:text-red-700"
+                                  onClick={() => handleEvidenceDelete(kpi.id, ev.id)}
+                                  title="Sil"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
                             </div>
                           ))
                         )}

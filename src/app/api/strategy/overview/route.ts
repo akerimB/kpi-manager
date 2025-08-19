@@ -4,9 +4,60 @@ import { prisma } from '@/lib/prisma'
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const factoryId = searchParams.get('factory')
+    const factoryParam = searchParams.get('factory')
     const period = searchParams.get('period') || '2024-Q4'
     const userRole = searchParams.get('userRole') || 'UPPER_MANAGEMENT'
+
+    // Fabrika ID çözümlemesi (id | code | name)
+    async function resolveFactoryId(param: string | null): Promise<string | null> {
+      if (!param) return null
+      // crudely detect cuid-like id
+      if (param.length > 20) return param
+      const byCode = await prisma.modelFactory.findFirst({ where: { code: param } })
+      if (byCode) return byCode.id
+      const byName = await prisma.modelFactory.findFirst({ where: { name: param } })
+      if (byName) return byName.id
+      return null
+    }
+
+    const resolvedFactoryId = await resolveFactoryId(factoryParam)
+
+    // Fabrika sektörel ağırlıkları (NACE/sector bazlı)
+    const factorySectorWeights = resolvedFactoryId
+      ? await prisma.factorySectorWeight.findMany({ where: { factoryId: resolvedFactoryId } })
+      : []
+
+    function mapNaceToSector(nace?: string | null): string | null {
+      if (!nace) return null
+      const m = nace.match(/\d{2}/)
+      if (!m) return null
+      const code = parseInt(m[0], 10)
+      // Heuristic mapping aligned with Data_SectorShares sectors
+      if ([10,11,12].includes(code)) return 'Gıda/İçecek'
+      if ([13,14,15].includes(code)) return 'Tekstil'
+      if (code === 16) return 'Mobilya'
+      if ([17,18,19].includes(code)) return 'Diğer'
+      if (code === 20) return 'Kimya'
+      if (code === 21) return 'Diğer'
+      if (code === 22) return 'Plastik/Kauçuk'
+      if (code === 23) return 'Mermer/Doğal Taş'
+      if (code === 24) return 'Çelik'
+      if (code === 25) return 'Metal (Fabrikasyon)'
+      if (code === 26) return 'Elektrik-Elektronik'
+      if (code === 27) return 'Demir Dışı Metaller'
+      if ([28].includes(code)) return 'Makine'
+      if ([29,30].includes(code)) return 'Otomotiv'
+      if (code === 31) return 'Mobilya'
+      if (code === 32) return 'Medikal Cihaz'
+      if (code === 3) return 'Su Ürünleri'
+      return 'Diğer'
+    }
+
+    function getSectorShare(sector?: string | null): number | null {
+      if (!sector) return null
+      const rec = factorySectorWeights.find(s => s.sector === sector)
+      return rec ? Number(rec.share) : null
+    }
 
     // Tüm stratejik amaçları getir
     const strategicGoals = await prisma.strategicGoal.findMany({
@@ -15,8 +66,8 @@ export async function GET(request: Request) {
           include: {
             kpis: {
               include: {
-                kpiValues: {
-                  where: factoryId ? { period, factoryId } : { period },
+                 kpiValues: {
+                   where: resolvedFactoryId ? { period, factoryId: resolvedFactoryId } : { period },
                   include: {
                     factory: {
                       select: {
@@ -32,7 +83,7 @@ export async function GET(request: Request) {
                 }
               }
             },
-            goalWeight: true
+            factoryWeights: true
           }
         }
       },
@@ -47,7 +98,7 @@ export async function GET(request: Request) {
                           period === '2024-Q2' ? '2024-Q1' : '2023-Q4'
 
     const previousKpiValues = await prisma.kpiValue.findMany({
-      where: factoryId ? { period: previousPeriod, factoryId } : { period: previousPeriod },
+      where: resolvedFactoryId ? { period: previousPeriod, factoryId: resolvedFactoryId } : { period: previousPeriod },
       include: {
         factory: {
           select: {
@@ -77,8 +128,23 @@ export async function GET(request: Request) {
           // Mevcut dönem KPI skoru: kpiValues ortalaması
           let kpiScore = 0
           if (kpi.kpiValues.length > 0) {
-            const avgVal = kpi.kpiValues.reduce((s, kv) => s + kv.value, 0) / kpi.kpiValues.length
-            kpiScore = Math.min(100, (avgVal / tv) * 100)
+            // NACE/sector ağırlıklı ortalama (fabrika seçiliyse)
+            if (resolvedFactoryId && factorySectorWeights.length > 0) {
+              let wSum = 0
+              let vSum = 0
+              for (const kv of kpi.kpiValues as any[]) {
+                const sector = mapNaceToSector(kv.nace4d)
+                const share = getSectorShare(sector) ?? 0
+                const w = share > 0 ? share : 0
+                if (w > 0) { vSum += kv.value * w; wSum += w }
+              }
+              const baseAvg = kpi.kpiValues.reduce((s, kv) => s + kv.value, 0) / kpi.kpiValues.length
+              const weightedAvg = wSum > 0 ? (vSum / wSum) : baseAvg
+              kpiScore = Math.min(100, (weightedAvg / tv) * 100)
+            } else {
+              const avgVal = kpi.kpiValues.reduce((s, kv) => s + kv.value, 0) / kpi.kpiValues.length
+              kpiScore = Math.min(100, (avgVal / tv) * 100)
+            }
           }
           // Önceki dönem KPI skoru
           const prevVals = previousKpiValues.filter(pv => pv.kpiId === kpi.id)
@@ -97,7 +163,10 @@ export async function GET(request: Request) {
         const shScore = shWeightSum > 0 ? shScoreWeightedSum / shWeightSum : 0
         const shPrev = shWeightSum > 0 ? shPrevScoreWeightedSum / shWeightSum : 0
         const shW = (sh as any).goalWeight ?? 0
-        const shWeight = shW > 0 ? shW : 0
+        const fwArr = Array.isArray((sh as any).factoryWeights) ? (sh as any).factoryWeights : []
+        const fRec = resolvedFactoryId ? fwArr.find((fw: any) => fw.factoryId === resolvedFactoryId) : null
+        const shFW = fRec ? (Number(fRec.weight) || 1) : 1
+        const shWeight = shW > 0 ? shW * shFW : 0
         saWeightedScore += shScore * shWeight
         saPrevWeightedScore += shPrev * shWeight
         saWeightSum += shWeight
@@ -109,7 +178,7 @@ export async function GET(request: Request) {
 
       // Eğer belirli bir fabrika seçiliyse, o fabrika için ayrı hesaplama (zaten factoryId ile filtreli)
       let factorySpecificScore = null
-      if (factoryId) factorySpecificScore = averageScore
+      if (resolvedFactoryId) factorySpecificScore = averageScore
 
       return {
         id: sa.id,
@@ -132,9 +201,9 @@ export async function GET(request: Request) {
       }
     })
 
-    return NextResponse.json(strategicOverview)
+    return NextResponse.json(Array.isArray(strategicOverview) ? strategicOverview : [])
   } catch (error) {
     console.error('Strategy overview error:', error)
-    return NextResponse.json({ error: 'Sunucu hatası' }, { status: 500 })
+    return NextResponse.json({ error: 'Sunucu hatası', detail: String(error) }, { status: 500 })
   }
 } 

@@ -54,18 +54,46 @@ export default function SimulationPage() {
   const [running, setRunning] = useState(false)
 
   // Kullanıcı bağlamını al
-  const userContext = getCurrentUser()
+  const [userContext, setUserContext] = useState<any>(null)
+  const [isClient, setIsClient] = useState(false)
+
+  useEffect(() => {
+    setIsClient(true)
+    setUserContext(getCurrentUser())
+  }, [])
 
   // Authentication ve rol kontrolü
   useEffect(() => {
-    if (!userContext) {
+    if (isClient && !userContext) {
       window.location.href = '/login'
       return
     }
-  }, [userContext])
+  }, [isClient, userContext])
+
+  // Loading durumları
+  if (!isClient) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  if (!userContext) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-blue-600 text-6xl mb-4">🔐</div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Giriş Gerekli</h2>
+          <p className="text-gray-600 mb-4">Bu sayfayı görüntülemek için giriş yapmanız gerekiyor.</p>
+          <a href="/login" className="text-blue-600 hover:text-blue-800">Giriş Yap</a>
+        </div>
+      </div>
+    )
+  }
 
   // Rol kontrolü - sadece simülasyon yetkisi olanlar erişebilir
-  if (userContext && !userContext.permissions.canCreateSimulations) {
+  if (!userContext.permissions?.canCreateSimulations) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">

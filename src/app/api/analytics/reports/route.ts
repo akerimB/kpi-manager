@@ -23,6 +23,27 @@ export async function GET(request: NextRequest) {
         meta: { kpiCount, targetCount },
       },
       {
+        key: 'evidenceOverview',
+        name: 'Kanıt Özeti (k-anonimlik)',
+        description: 'NACE/sector kırılımında kanıt sayısı ve hacim',
+        link: `/api/analytics/evidence?period=${encodeURIComponent(period)}${factoryId ? `&factory=${encodeURIComponent(factoryId)}` : ''}`,
+        meta: { minN: 5 },
+      },
+      {
+        key: 'sectorsHeatmap',
+        name: 'Dokunulan Sektörler',
+        description: 'NACE ve fabrika sektör payı ile etki görünümü',
+        link: `/api/analytics/overview?period=${encodeURIComponent(period)}${factoryId ? `&factory=${encodeURIComponent(factoryId)}` : ''}`,
+        meta: { note: 'NACE senkronlu' },
+      },
+      {
+        key: 'impactHeatmap',
+        name: 'Etki Isı Haritası',
+        description: 'SA/SH × Sektör etki matrisi',
+        link: `/api/strategy/overview?period=${encodeURIComponent(period)}${factoryId ? `&factory=${encodeURIComponent(factoryId)}` : ''}`,
+        meta: { note: 'Ağırlıklandırmalı skorlar' },
+      },
+      {
         key: 'budgetImpact',
         name: 'Bütçe Etkinliği',
         description: 'SA/SH düzeyi plan/gerçek/etki',

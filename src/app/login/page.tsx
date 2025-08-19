@@ -32,8 +32,10 @@ export default function LoginPage() {
 
       if (response.ok) {
         // Başarılı giriş
+        const loginTime = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
         localStorage.setItem('authToken', data.token)
         localStorage.setItem('user', JSON.stringify(data.user))
+        localStorage.setItem('loginTime', loginTime)
         router.push('/')
       } else {
         setError(data.error || 'Giriş yapılamadı')
@@ -45,15 +47,26 @@ export default function LoginPage() {
     }
   }
 
-  // Demo kullanıcılar için hızlı giriş
-  const quickLogin = (userType: 'factory' | 'management') => {
-    if (userType === 'factory') {
-      setEmail('fabrika1@example.com')
-      setPassword('123456')
-    } else {
-      setEmail('yonetim@example.com')
-      setPassword('123456')
+  // Demo hesap bilgilerini formlara doldur
+  const fillDemoCredentials = (role: 'MODEL_FACTORY' | 'UPPER_MANAGEMENT', factoryCode?: string) => {
+    let demoEmail = ''
+    let demoPassword = 'demo123' // Genel demo şifre
+    
+    switch (role) {
+      case 'MODEL_FACTORY':
+        const factory = factoryCode || 'KAYSERI'
+        demoEmail = `${factory.toLowerCase()}@kobimodel.gov.tr`
+        demoPassword = `${factory.charAt(0).toUpperCase() + factory.slice(1).toLowerCase()}123!`
+        break
+      case 'UPPER_MANAGEMENT':
+        demoEmail = 'ust.yonetim@kobimodel.gov.tr'
+        demoPassword = 'UstYon123!'
+        break
     }
+    
+    setEmail(demoEmail)
+    setPassword(demoPassword)
+    setError('') // Hataları temizle
   }
 
   return (
@@ -135,23 +148,35 @@ export default function LoginPage() {
           {/* Demo kullanıcılar için hızlı giriş */}
           <div className="mt-6 pt-4 border-t border-gray-200">
             <p className="text-sm text-gray-600 mb-3 text-center">Demo Hesapları:</p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => quickLogin('factory')}
+                onClick={() => fillDemoCredentials('MODEL_FACTORY', 'KAYSERI')}
                 className="text-xs"
+                disabled={loading}
               >
-                Model Fabrika
+                🏭 Model Fabrika (Kayseri)
               </Button>
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => quickLogin('management')}
+                onClick={() => fillDemoCredentials('MODEL_FACTORY', 'ANKARA')}
                 className="text-xs"
+                disabled={loading}
               >
-                Üst Yönetim
+                🏭 Model Fabrika (Ankara)
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fillDemoCredentials('UPPER_MANAGEMENT')}
+                className="text-xs"
+                disabled={loading}
+              >
+                👔 Üst Yönetim
+              </Button>
+
             </div>
           </div>
         </CardContent>

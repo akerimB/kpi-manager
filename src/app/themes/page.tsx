@@ -43,7 +43,8 @@ export default function ThemeTracking() {
   const [loading, setLoading] = useState(true)
 
   // Kullanıcı bağlamını al
-  const userContext = getCurrentUser()
+  const [userContext, setUserContext] = useState<any>(null)
+  const [isClient, setIsClient] = useState(false)
 
   // Memoized values to prevent unnecessary re-renders
   const isAuthenticated = useMemo(() => !!userContext, [userContext])
@@ -52,13 +53,24 @@ export default function ThemeTracking() {
     [userContext]
   )
 
-  // Authentication kontrolü
   useEffect(() => {
-    if (!isAuthenticated) {
-      window.location.href = '/login'
+    setIsClient(true)
+    setUserContext(getCurrentUser())
+  }, [])
+
+  // Authentication kontrolü - only after userContext is properly set
+  useEffect(() => {
+    if (isClient && userContext === null) {
+      // Only redirect if we've checked and userContext is definitely null
+      setTimeout(() => {
+        const user = getCurrentUser()
+        if (!user) {
+          window.location.href = '/login'
+        }
+      }, 100)
       return
     }
-  }, [isAuthenticated])
+  }, [isClient, userContext])
 
   // Memoized fetch function
   const fetchData = useCallback(async () => {
@@ -203,6 +215,27 @@ export default function ThemeTracking() {
             </g>
           ))}
         </svg>
+      </div>
+    )
+  }
+
+  if (!isClient) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  if (!userContext) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-blue-600 text-6xl mb-4">🔐</div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Giriş Gerekli</h2>
+          <p className="text-gray-600 mb-4">Bu sayfayı görüntülemek için giriş yapmanız gerekiyor.</p>
+          <a href="/login" className="text-blue-600 hover:text-blue-800">Giriş Yap</a>
+        </div>
       </div>
     )
   }

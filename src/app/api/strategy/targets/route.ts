@@ -5,11 +5,58 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const saCode = searchParams.get('sa')
-    const factoryId = searchParams.get('factory')
+    const factoryParam = searchParams.get('factory')
     const period = searchParams.get('period') || '2024-Q4'
     const userRole = searchParams.get('userRole') || 'UPPER_MANAGEMENT'
 
-    let whereCondition = {}
+    // Fabrika ID çözümlemesi (id | code | name)
+    async function resolveFactoryId(param: string | null): Promise<string | null> {
+      if (!param) return null
+      if (param.length > 20) return param
+      const byCode = await prisma.modelFactory.findFirst({ where: { code: param } })
+      if (byCode) return byCode.id
+      const byName = await prisma.modelFactory.findFirst({ where: { name: param } })
+      if (byName) return byName.id
+      return null
+    }
+
+    const factoryId = await resolveFactoryId(factoryParam)
+
+    // Fabrika sektörel payları
+    const factorySectorWeights = factoryId
+      ? await prisma.factorySectorWeight.findMany({ where: { factoryId } })
+      : []
+
+    function mapNaceToSector(nace?: string | null): string | null {
+      if (!nace) return null
+      const m = (nace as string).match(/\d{2}/)
+      if (!m) return null
+      const code = parseInt(m[0], 10)
+      if ([10,11,12].includes(code)) return 'Gıda/İçecek'
+      if ([13,14,15].includes(code)) return 'Tekstil'
+      if (code === 16 || code === 31) return 'Mobilya'
+      if ([17,18,19].includes(code)) return 'Diğer'
+      if (code === 20) return 'Kimya'
+      if (code === 22) return 'Plastik/Kauçuk'
+      if (code === 23) return 'Mermer/Doğal Taş'
+      if (code === 24) return 'Çelik'
+      if (code === 25) return 'Metal (Fabrikasyon)'
+      if (code === 26) return 'Elektrik-Elektronik'
+      if (code === 27) return 'Demir Dışı Metaller'
+      if (code === 28) return 'Makine'
+      if ([29,30].includes(code)) return 'Otomotiv'
+      if (code === 32) return 'Medikal Cihaz'
+      if (code === 3) return 'Su Ürünleri'
+      return 'Diğer'
+    }
+
+    function getSectorShare(sector?: string | null): number | null {
+      if (!sector) return null
+      const rec = factorySectorWeights.find(s => s.sector === sector)
+      return rec ? Number(rec.share) : null
+    }
+
+    let whereCondition: any = {}
     if (saCode) {
       whereCondition = {
         strategicGoal: {
@@ -39,9 +86,10 @@ export async function GET(request: NextRequest) {
                 period: 'desc'
               }
             },
-            shWeight: true
+            
           }
         },
+        factoryWeights: true,
         actions: {
           select: {
             id: true,
@@ -49,7 +97,7 @@ export async function GET(request: NextRequest) {
             completionPercent: true
           }
         },
-        goalWeight: true
+        // goalWeight is a scalar; no include
       },
       orderBy: {
         code: 'asc'
@@ -85,8 +133,22 @@ export async function GET(request: NextRequest) {
         const tv = kpi.targetValue || 100
         let kpiScore = 0
         if (kpi.kpiValues.length > 0) {
-          const avgVal = kpi.kpiValues.reduce((s, kv) => s + kv.value, 0) / kpi.kpiValues.length
-          kpiScore = Math.min(100, (avgVal / tv) * 100)
+          // NACE kırılımı varsa MF sektörel payları ile ağırlıklandır
+      const hasNace = kpi.kpiValues.some(kv => (kv as any).nace4d)
+      if (factoryId && factorySectorWeights.length > 0 && hasNace) {
+        let wSum = 0; let vSum = 0
+        for (const kv of kpi.kpiValues as any[]) {
+          const sector = mapNaceToSector(kv.nace4d)
+          const share = getSectorShare(sector) ?? 0
+          if (share > 0) { vSum += kv.value * share; wSum += share }
+        }
+        const baseAvg = kpi.kpiValues.reduce((s, kv) => s + kv.value, 0) / kpi.kpiValues.length
+        const weightedAvg = wSum > 0 ? (vSum / wSum) : baseAvg
+        kpiScore = Math.min(100, (weightedAvg / tv) * 100)
+      } else {
+        const avgVal = kpi.kpiValues.reduce((s, kv) => s + kv.value, 0) / kpi.kpiValues.length
+        kpiScore = Math.min(100, (avgVal / tv) * 100)
+      }
         }
         const prevVals = previousKpiValues.filter(pv => pv.kpiId === kpi.id)
         let kpiPrevScore = 0
@@ -101,7 +163,11 @@ export async function GET(request: NextRequest) {
         shWeightSum += weight
       })
 
-      const averageScore = shWeightSum > 0 ? Math.round(shScoreWeightedSum / shWeightSum) : 0
+      // Fabrika-özel SH ağırlığı (varsa) uygula
+      const fwArr = Array.isArray((sh as any).factoryWeights) ? (sh as any).factoryWeights : []
+      const fRec = factoryId ? fwArr.find((fw: any) => fw.factoryId === factoryId) : null
+      const factoryWeight = fRec ? (Number(fRec.weight) || 1) : 1
+      const averageScore = shWeightSum > 0 ? Math.round((shScoreWeightedSum / shWeightSum) * factoryWeight) : 0
       const previousAverageScore = shWeightSum > 0 ? Math.round(shPrevWeightedSum / shWeightSum) : 0
       const trend = averageScore - previousAverageScore
 

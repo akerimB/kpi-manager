@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import jwt from 'jsonwebtoken'
+import bcrypt from 'bcryptjs'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-here'
 
@@ -24,8 +25,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Kullanıcı bulunamadı' }, { status: 401 })
     }
 
-    // Şifre kontrolü (basit kontrol - gerçek uygulamada bcrypt kullanılmalı)
-    if (password !== '123456') {
+    // Şifre kontrolü - bcrypt ile hash'lenmiş şifre karşılaştırması
+    if (!user.hashedPassword) {
+      return NextResponse.json({ error: 'Kullanıcı şifresi tanımlı değil' }, { status: 401 })
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.hashedPassword)
+    if (!isPasswordValid) {
       return NextResponse.json({ error: 'Geçersiz şifre' }, { status: 401 })
     }
 

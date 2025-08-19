@@ -14,7 +14,11 @@
     "csv:hints": "tsx scripts/generate_action_hints.ts",
     "weights:gen": "tsx scripts/generate_weights.ts",
     "xlsx:export": "tsx scripts/xlsx_export.ts",
-    "import:mf": "tsx scripts/import_factories_from_exports.ts"
+    "import:mf": "tsx scripts/import_factories_from_exports.ts",
+    "sync:mf:text": "tsx scripts/sync_factories_from_text.ts",
+    "db:demo:kpi": "tsx scripts/populate_kpi_values.ts",
+    "db:demo:evidences": "tsx scripts/add_sample_evidences.ts",
+    "db:evidence:templates": "tsx scripts/generate_evidence_templates.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.669.0",
@@ -26,10 +30,13 @@
     "@types/jsonwebtoken": "^9.0.10",
     "bcryptjs": "^3.0.2",
     "clsx": "^2.1.1",
+    "html2canvas": "^1.4.1",
     "jsonwebtoken": "^9.0.2",
+    "jspdf": "^3.0.1",
     "lucide-react": "^0.525.0",
     "next": "^15.3.5",
     "next-auth": "^4.24.11",
+    "openai": "^4.55.0",
     "prisma": "^6.11.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

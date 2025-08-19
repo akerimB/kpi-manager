@@ -1,0 +1,159 @@
+{
+  "evidenceFields": {
+    "kpiId": {
+      "type": "string",
+      "description": "KPI benzersiz tanımlayıcısı",
+      "required": true,
+      "validation": "UUID format"
+    },
+    "factoryId": {
+      "type": "string", 
+      "description": "Model Fabrika benzersiz tanımlayıcısı",
+      "required": true,
+      "validation": "UUID format"
+    },
+    "period": {
+      "type": "string",
+      "description": "Raporlama dönemi",
+      "required": true,
+      "format": "YYYY-QN veya YYYY-MM",
+      "examples": ["2024-Q4", "2024-12"]
+    },
+    "fileName": {
+      "type": "string",
+      "description": "Kanıt dosyası adı",
+      "required": true,
+      "maxLength": 255,
+      "naming": "KPI{number}_{factory}_{type}_{period}.{ext}"
+    },
+    "fileType": {
+      "type": "string",
+      "description": "MIME tipi",
+      "required": true,
+      "allowedValues": [
+        "text/csv",
+        "application/pdf", 
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/zip",
+        "image/jpeg",
+        "image/png"
+      ]
+    },
+    "category": {
+      "type": "string",
+      "description": "Kanıt kategorisi",
+      "required": true,
+      "allowedValues": ["REPORT", "IMAGE", "CERTIFICATE", "LOG", "EMAIL", "OTHER"]
+    },
+    "firmIdHash": {
+      "type": "string",
+      "description": "Anonim firma tanımlayıcısı (KVKK uyumlu)",
+      "required": false,
+      "format": "SHA256 hash",
+      "anonymization": true
+    },
+    "nace4d": {
+      "type": "string",
+      "description": "NACE Rev.2 4'lü sektör kodu",
+      "required": false,
+      "format": "XX.XX",
+      "examples": ["25.62", "10.11", "29.10"],
+      "validation": "NACE Rev.2 kodlarına uygunluk"
+    },
+    "nace2d": {
+      "type": "string", 
+      "description": "NACE Rev.2 2'li sektör kodu",
+      "required": false,
+      "format": "XX",
+      "examples": ["25", "10", "29"]
+    },
+    "province": {
+      "type": "string",
+      "description": "İl adı",
+      "required": false,
+      "examples": ["Ankara", "İstanbul", "İzmir"]
+    },
+    "zoneType": {
+      "type": "string",
+      "description": "Bölge/kurum tipi",
+      "required": false,
+      "allowedValues": ["OSB", "Serbest Bölge", "Sanayi Sitesi", "Teknopark", "Diğer"]
+    },
+    "employees": {
+      "type": "integer",
+      "description": "Çalışan sayısı (tahmini)",
+      "required": false,
+      "min": 1,
+      "max": 10000,
+      "anonymization": "Aralık değerlerle (1-49, 50-249, 250+)"
+    },
+    "revenue": {
+      "type": "number",
+      "description": "Yıllık ciro (TL)",
+      "required": false,
+      "min": 0,
+      "anonymization": "Aralık değerlerle (KOBİ sınıfları)"
+    },
+    "hasExport": {
+      "type": "boolean",
+      "description": "İhracat durumu",
+      "required": false,
+      "defaultValue": false
+    },
+    "meta": {
+      "type": "object",
+      "description": "Ek JSON verileri (anket yanıtları, skorlar vb.)",
+      "required": false,
+      "schema": {
+        "analysisMethod": "string",
+        "qualityScore": "number (0-1)",
+        "kpiNumber": "integer",
+        "fileSequence": "integer"
+      }
+    }
+  },
+  "analysisRequirements": {
+    "minimumSampleSize": {
+      "surveys": 30,
+      "institutions": 5,
+      "tracking": 20,
+      "description": "k-anonimlik için minimum n değerleri"
+    },
+    "dataQuality": {
+      "completeness": ">= 80%",
+      "timeliness": "Dönem sonu + 30 gün içi",
+      "accuracy": "Çapraz doğrulama gerekli",
+      "consistency": "Aynı KPI'da dosyalar arası tutarlılık"
+    },
+    "sectoralBreakdown": {
+      "enabled": true,
+      "method": "NACE 2d/4d kodlarına göre",
+      "weighting": "Çalışan sayısı veya ciro ile ağırlıklandırma",
+      "anonymization": "n<5 hücreler 'Diğer' olarak birleştirilir"
+    }
+  },
+  "fileNamingConvention": {
+    "pattern": "KPI{number}_{factory}_{type}_{period}.{extension}",
+    "examples": [
+      "KPI01_ANKARA_on_anket_2024Q4.csv",
+      "KPI22_IZMIR_mes_logs_2024Q4.csv", 
+      "KPI32_BURSA_vsm_rapor_2024Q4.pdf"
+    ],
+    "restrictions": [
+      "Türkçe karakter kullanmayın",
+      "Boşluk yerine alt çizgi (_) kullanın",
+      "Maksimum 255 karakter"
+    ]
+  },
+  "validationRules": {
+    "requiredFields": ["kpiId", "factoryId", "period", "fileName", "fileType"],
+    "naceValidation": "NACE Rev.2 kod listesi ile karşılaştırma",
+    "fileSizeLimit": "25 MB",
+    "allowedExtensions": [".csv", ".xlsx", ".pdf", ".zip", ".jpg", ".png"],
+    "securityChecks": [
+      "Virus tarama",
+      "Kişisel veri maskeleme kontrolü",
+      "Dosya bütünlüğü doğrulama"
+    ]
+  }
+}

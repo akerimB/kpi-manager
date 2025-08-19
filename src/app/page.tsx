@@ -52,9 +52,8 @@ export default function Home() {
   const [phases, setPhases] = useState<PhaseData[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
-  
-  // Kullanıcı bağlamını al
-  const userContext = getCurrentUser()
+  const [userContext, setUserContext] = useState<any>(null)
+  const [isClient, setIsClient] = useState(false)
 
   // Memoized values to prevent unnecessary re-renders
   const isAuthenticated = useMemo(() => !!userContext, [userContext])
@@ -63,14 +62,85 @@ export default function Home() {
     [userContext]
   )
 
-  // Authentication kontrolü
   useEffect(() => {
-    if (!isAuthenticated) {
-      // Hızlı ve geri butonunda döngü yaratmayan yönlendirme
-      window.location.replace('/login')
-      return
+    setIsClient(true)
+    const user = getCurrentUser()
+    setUserContext(user)
+    
+    // Session monitoring başlat
+    if (user) {
+      console.log('Ana sayfada session monitoring başlatılıyor...')
     }
-  }, [isAuthenticated])
+  }, [])
+
+  // Real-time kullanıcı bilgisi güncelleme
+  useEffect(() => {
+    if (!isClient) return
+
+    const updateUserContext = () => {
+      const currentUser = getCurrentUser()
+      if (currentUser?.user?.email !== userContext?.user?.email) {
+        console.log('Ana sayfada kullanıcı değişti, güncelleniyor...')
+        setUserContext(currentUser)
+      }
+    }
+
+    // Her 1 saniyede bir kontrol et
+    const interval = setInterval(updateUserContext, 1000)
+
+    // localStorage değişikliklerini dinle
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'user' || e.key === 'authToken') {
+        updateUserContext()
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('storage', handleStorageChange)
+    }
+  }, [isClient, userContext?.user?.email])
+
+  // Authentication kontrolü - improved logic
+  useEffect(() => {
+    if (!isClient) return
+    
+    // İlk yüklemede user context'i al
+    const checkAuth = () => {
+      const user = getCurrentUser()
+      if (!user) {
+        console.log('Ana sayfada user bulunamadı, login sayfasına yönlendiriliyor...')
+        window.location.href = '/login'
+      } else if (!userContext) {
+        // User varsa ama context set edilmemişse set et
+        setUserContext(user)
+      }
+    }
+    
+    // Küçük bir delay ile kontrol et
+    const timeoutId = setTimeout(checkAuth, 50)
+    return () => clearTimeout(timeoutId)
+  }, [isClient, userContext])
+
+  // Sürekli session kontrol
+  useEffect(() => {
+    if (!isClient || !userContext) return
+
+    const interval = setInterval(() => {
+      const currentUser = getCurrentUser()
+      if (!currentUser) {
+        console.log('Ana sayfada session kaybedildi, login sayfasına yönlendiriliyor...')
+        window.location.href = '/login'
+      } else if (currentUser.user?.email !== userContext.user?.email) {
+        console.log('Ana sayfada farklı kullanıcı tespit edildi, sayfa yenileniyor...')
+        window.location.reload()
+      }
+    }, 2000) // 2 saniyede bir kontrol
+
+    return () => clearInterval(interval)
+  }, [isClient, userContext])
 
   // Memoized fetch function
   const fetchData = useCallback(async () => {
@@ -157,19 +227,48 @@ export default function Home() {
     }
   }, [])
 
-  // Yetkisiz kullanıcıyı anında yönlendir ve hafif bir ekran göster
-  if (!isAuthenticated) {
+  // Client-side olmadan hiçbir authentication kontrolü yapma
+
+  if (!isClient || !userContext) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-pulse rounded-full h-6 w-6 bg-blue-600 mx-auto mb-3"></div>
-          <p className="mt-1 text-gray-600">Giriş sayfasına yönlendiriliyor...</p>
+      <div className="p-6">
+        {/* Dashboard Header - Skeleton */}
+        <div className="mb-8">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h2>
+              <p className="text-gray-600">Model Fabrika performans takibi</p>
+            </div>
+            <div className="flex space-x-3">
+              <div className="animate-pulse bg-gray-200 h-10 w-32 rounded-lg"></div>
+              <div className="animate-pulse bg-gray-200 h-10 w-32 rounded-lg"></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Cards - Loading */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white p-6 rounded-lg shadow">
+              <div className="animate-pulse">
+                <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                <div className="h-8 bg-gray-200 rounded w-1/2 mb-2"></div>
+                <div className="h-3 bg-gray-200 rounded w-1/4"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Loading message */}
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+          <p className="text-gray-600 text-sm">Veriler yükleniyor...</p>
         </div>
       </div>
     )
   }
 
-  if (!userContext || loading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">

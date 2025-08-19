@@ -251,6 +251,17 @@ model KpiEvidence {
   kpi           Kpi          @relation(fields: [kpiId], references: [id])
   factory       ModelFactory @relation(fields: [factoryId], references: [id])
 
+  // Ek evidans alanları (kanıt.txt ile uyumlu)
+  firmIdHash    String?
+  nace2d        String?
+  nace4d        String?
+  province      String?
+  zoneType      String? // OSB, Serbest Bölge, vb.
+  employees     Int?
+  revenue       Float?
+  hasExport     Boolean?
+  meta          Json?
+
   @@index([kpiId, factoryId, period])
   @@map("kpi_evidence")
 }

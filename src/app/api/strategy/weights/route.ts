@@ -9,7 +9,6 @@ export async function GET() {
         kpis: {
           select: { number: true, shWeight: true }
         },
-        goalWeight: true,
       },
       orderBy: { code: 'asc' }
     })
@@ -17,7 +16,7 @@ export async function GET() {
     const shWeights = targets.map(t => ({
       saCode: t.strategicGoal.code,
       shCode: t.code,
-      weight: (t as any).goalWeight ?? null,
+      weight: t.goalWeight ?? null,
       kpiCount: t.kpis.length,
     }))
 
@@ -25,14 +24,14 @@ export async function GET() {
       t.kpis.map(k => ({
         shCode: t.code,
         kpiNumber: k.number,
-        weight: (k as any).shWeight ?? null,
+        weight: k.shWeight ?? null,
       }))
     )
 
     return NextResponse.json({ shWeights, kpiWeights })
   } catch (error) {
     console.error('Weights API error:', error)
-    return NextResponse.json({ error: 'Sunucu hatası' }, { status: 500 })
+    return NextResponse.json({ error: 'Sunucu hatası', detail: String(error) }, { status: 500 })
   }
 }
 
