@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     // Tüm fabrikalar ve KPI değerleri
     const [factories, kpiValues, previousKpiValues, strategicGoals] = await Promise.all([
       prisma.modelFactory.findMany({
-        select: { id: true, name: true, province: true }
+        select: { id: true, name: true, city: true }
       }),
       prisma.kpiValue.findMany({
         where: { period: { in: periods } },
@@ -122,44 +122,56 @@ export async function GET(request: NextRequest) {
     })
     
     // KPI ortalamalarını hesapla
-    Object.values(kpiAverages).forEach(avg => {
+    Object.entries(kpiAverages).forEach(([kpiId, avg]) => {
       const averageScore = avg.totalScore / avg.count
       
       totalScore += averageScore
       valueCount++
       
-      // Factory breakdown (ilk KPI değerini kullan)
-      const firstKv = kpiValues.find(kv => kv.kpi.id === Object.keys(kpiAverages).find(key => kpiAverages[key] === avg))
-      if (firstKv && firstKv.factoryId && factoryScores[firstKv.factoryId]) {
-        factoryScores[firstKv.factoryId].score += averageScore
-        factoryScores[firstKv.factoryId].count++
-      }
-      
-      // SA breakdown (ilk KPI değerini kullan)
-      if (firstKv && firstKv.kpi.strategicTarget?.strategicGoal?.code) {
-        const saCode = firstKv.kpi.strategicTarget.strategicGoal.code
-        if (saScores[saCode]) {
-          saScores[saCode].current += averageScore
-          saScores[saCode].count++
+      // Factory breakdown (doğru KPI eşleştirme)
+      const kpiValues_forThisKpi = kpiValues.filter(kv => kv.kpi.id === kpiId)
+      kpiValues_forThisKpi.forEach(kv => {
+        if (kv.factoryId && factoryScores[kv.factoryId]) {
+          factoryScores[kv.factoryId].score += averageScore / kpiValues_forThisKpi.length
+          factoryScores[kv.factoryId].count += 1 / kpiValues_forThisKpi.length
         }
-      }
+        
+        // SA breakdown (doğru KPI eşleştirme)
+        if (kv.kpi.strategicTarget?.strategicGoal?.code) {
+          const saCode = kv.kpi.strategicTarget.strategicGoal.code
+          if (saScores[saCode]) {
+            saScores[saCode].current += averageScore / kpiValues_forThisKpi.length
+            saScores[saCode].count += 1 / kpiValues_forThisKpi.length
+          }
+        }
+      })
     })
 
-    // Previous period calculation
+    // Previous period calculation (normalize per KPI similar to current)
+    const prevKpiAverages: Record<string, { totalScore: number; count: number; saCode: string | null }> = {}
     previousKpiValues.forEach(kv => {
       if (!kv.kpi || !kv.kpi.strategicTarget || !kv.kpi.strategicTarget.strategicGoal) {
         return // Skip invalid entries
       }
-      
       const target = kv.kpi.targetValue || 100
       const score = Math.min(100, (kv.value / target) * 100)
       totalPrevScore += score
       prevValueCount++
 
-      // SA level previous
-      const saCode = kv.kpi.strategicTarget.strategicGoal.code
+      const kpiId = kv.kpi.id
+      if (!prevKpiAverages[kpiId]) {
+        prevKpiAverages[kpiId] = { totalScore: 0, count: 0, saCode: kv.kpi.strategicTarget.strategicGoal.code || null }
+      }
+      prevKpiAverages[kpiId].totalScore += score
+      prevKpiAverages[kpiId].count++
+    })
+
+    // Distribute normalized previous KPI averages to SA buckets (one contribution per KPI)
+    Object.entries(prevKpiAverages).forEach(([kpiId, prev]) => {
+      const avgPrev = prev.count > 0 ? prev.totalScore / prev.count : 0
+      const saCode = prev.saCode
       if (saCode && saScores[saCode]) {
-        saScores[saCode].previous += score
+        saScores[saCode].previous += avgPrev
       }
     })
 
@@ -190,7 +202,7 @@ export async function GET(request: NextRequest) {
         {
           name: data.name,
           score: data.count > 0 ? Math.round(data.current / data.count) : 0,
-          trend: data.count > 0 ? Math.round((data.current / data.count) - (data.previous / data.count || 0)) : 0
+          trend: data.count > 0 ? Math.round((data.current / data.count) - ((data.previous ?? 0) / data.count)) : 0
         }
       ])
     )
@@ -244,6 +256,11 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Executive summary error:', error)
-    return NextResponse.json({ error: 'Sunucu hatası' }, { status: 500 })
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+    return NextResponse.json({ 
+      error: 'Sunucu hatası', 
+      detail: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString()
+    }, { status: 500 })
   }
 }

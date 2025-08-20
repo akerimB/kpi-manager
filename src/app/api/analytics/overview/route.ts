@@ -1,5 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { KPICalculator, KPIUtils } from '@/lib/kpi-calculator'
+import { 
+  validateRequest, 
+  validateAccess, 
+  validateDataRange,
+  AnalyticsOverviewRequestSchema,
+  createValidationErrorResponse,
+  PeriodUtils,
+  safeParseNumber
+} from '@/lib/validation'
+import { OptimizedKPILoader, PerformanceMonitor } from '@/lib/query-optimizer'
+import { analyticsCache } from '@/lib/redis-cache'
 
 // Dönem aralığı hesaplama fonksiyonları
 function calculatePeriodRange(basePeriod: string, range: string): string[] {
@@ -50,14 +62,26 @@ function getPreviousPeriod(period: string): string {
 // Basit analytics overview: genel başarı, tema dağılımı, riskli KPI'lar, zaman çizgisi
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams
-    const userRole = searchParams.get('userRole') || 'UPPER_MANAGEMENT'
-    const factoryId = searchParams.get('factoryId') || searchParams.get('factory') || undefined
+    // Request validation
+    const validationResult = validateRequest(AnalyticsOverviewRequestSchema, request)
+    if (!validationResult.success) {
+      return createValidationErrorResponse(validationResult.errors!)
+    }
     
-    // Çoklu dönem desteği
-    const periodsParam = searchParams.getAll('periods')
-    const periods = periodsParam.length > 0 ? periodsParam : [searchParams.get('period') || '2024-Q4']
+    const { userRole, factoryId, periods } = validationResult.data!
     const currentPeriod = periods[periods.length - 1] // En son dönem
+    
+    // Access control validation
+    const accessResult = validateAccess(userRole, factoryId, factoryId)
+    if (!accessResult.success) {
+      return createValidationErrorResponse(accessResult.errors!, 403)
+    }
+    
+    // Data range validation
+    const rangeResult = validateDataRange(periods, 12)
+    if (!rangeResult.success) {
+      return createValidationErrorResponse(rangeResult.errors!)
+    }
 
     // Rol bazlı erişim kontrolü
     let accessibleFactoryIds: string[] = []
@@ -76,135 +100,205 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Önceki dönem hesapla (trend için)
-    const previousPeriod = getPreviousPeriod(currentPeriod)
-
-    // KPI'lar ve değerleri (rol bazlı filtreleme ile)
-    const kpis = await prisma.kpi.findMany({
-      include: {
-        kpiValues: {
-          where: {
-            OR: [
-              { period: { in: periods } },
-              { period: previousPeriod }
-            ],
-            factoryId: { in: accessibleFactoryIds }
-          },
-          orderBy: { period: 'desc' }
-        }
-      }
-    })
-
-    // Genel metrikler (rol bazlı)
-    const factoriesCount = userRole === 'MODEL_FACTORY' ? 1 : await prisma.modelFactory.count()
-    const actionsCount = await prisma.action.count()
-    const kpiCount = kpis.length
-
-    let totalScore = 0
-    let totalPrevScore = 0
-    let valueCount = 0
-    const themeAccumulator: Record<string, { sum: number; count: number }> = {}
-    const factoryBreakdown: Record<string, { name: string; score: number; count: number }> = {}
-
-    // Fabrika bilgilerini al (üst yönetim için)
-    let factoryInfo: Record<string, string> = {}
-    if (userRole === 'UPPER_MANAGEMENT' || userRole === 'ADMIN') {
-      const factories = await prisma.modelFactory.findMany({
-        where: { id: { in: accessibleFactoryIds } },
-        select: { id: true, name: true }
-      })
-      factoryInfo = Object.fromEntries(factories.map(f => [f.id, f.name]))
+    // Check cache first
+    const cachedOverview = await analyticsCache.getOverview(userRole, accessibleFactoryIds, periods)
+    if (cachedOverview) {
+      console.log('📦 Serving from cache')
+      return NextResponse.json(cachedOverview)
     }
 
-    kpis.forEach(kpi => {
-      const target = kpi.targetValue ?? 100
-      const themes = (kpi.themes || '').split(',').map(t => t.trim()).filter(Boolean)
+    // Önceki dönem hesapla (trend için)
+    const previousPeriod = PeriodUtils.getPreviousPeriod(currentPeriod)
+    const allPeriods = [...periods, previousPeriod]
 
-      // Dönem aralığındaki tüm değerleri işle
-      const currentValues = kpi.kpiValues.filter(v => periods.includes(v.period))
-      const prevValues = kpi.kpiValues.filter(v => v.period === previousPeriod)
-
-      currentValues.forEach(curr => {
-        const score = Math.min(100, (curr.value / target) * 100)
-        totalScore += score
-        valueCount++
-
-        // Tema bazında toplayıcı
-        themes.forEach(t => {
-          themeAccumulator[t] = themeAccumulator[t] || { sum: 0, count: 0 }
-          themeAccumulator[t].sum += score
-          themeAccumulator[t].count += 1
-        })
-
-        // Fabrika bazında breakdown (üst yönetim için)
-        if ((userRole === 'UPPER_MANAGEMENT' || userRole === 'ADMIN') && curr.factoryId) {
-          const factoryName = factoryInfo[curr.factoryId] || 'Bilinmeyen'
-          if (!factoryBreakdown[curr.factoryId]) {
-            factoryBreakdown[curr.factoryId] = { name: factoryName, score: 0, count: 0 }
-          }
-          factoryBreakdown[curr.factoryId].score += score
-          factoryBreakdown[curr.factoryId].count += 1
-        }
+    // Optimized data loading
+    const loader = OptimizedKPILoader.getInstance()
+    
+    const aggregateData = await PerformanceMonitor.measure('load_aggregate_data', () =>
+      loader.loadAggregateData({
+        periods: allPeriods,
+        factoryIds: accessibleFactoryIds.length > 0 ? accessibleFactoryIds : undefined,
+        userRole
       })
+    )
 
-      prevValues.forEach(prev => {
-        const prevScore = Math.min(100, (prev.value / target) * 100)
-        totalPrevScore += prevScore
-      })
+    // Extract optimized data
+    const { kpiData, factoryInfo: factoryInfoData, actionCount } = aggregateData
+    const kpis = kpiData.kpis
+    const kpiValues = kpiData.kpiValues
+
+    // Genel metrikler (rol bazlı) - optimized
+    const factoriesCount = userRole === 'MODEL_FACTORY' ? 1 : (factoryInfoData?.count || accessibleFactoryIds.length)
+    const actionsCount = actionCount
+    const kpiCount = kpis.length
+
+    // Fabrika bilgilerini extract et
+    const factoryInfo = factoryInfoData?.factoryMap ? 
+      Object.fromEntries(Object.entries(factoryInfoData.factoryMap).map(([id, f]: [string, any]) => [id, f.name])) :
+      {}
+
+    // KPI Calculator initialize
+    const calculator = new KPICalculator({
+      useWeights: false, // Basit ortalama için
+      handleMissingTarget: 'default',
+      defaultTarget: 100,
+      periodWeighting: 'equal'
     })
 
-    const avgSuccess = valueCount > 0 ? Math.round(totalScore / valueCount) : 0
-    const avgPrevSuccess = valueCount > 0 ? Math.round(totalPrevScore / valueCount) : 0
-    const trend = avgSuccess - avgPrevSuccess
+    // KPI lookup map for performance
+    const kpiMap = new Map(kpis.map(k => [k.id, k]))
 
-    const themes = Object.entries(themeAccumulator).map(([name, { sum, count }]) => ({
+    // KPI değerlerini calculator formatına çevir - optimized processing
+    const currentKpiValues = await PerformanceMonitor.measure('process_current_kpi_values', () => {
+      return kpiValues
+        .filter(v => periods.includes(v.period))
+        .filter(v => v.value != null && !isNaN(v.value)) // Null/NaN değerleri filtrele
+        .map(v => {
+          const kpi = kpiMap.get(v.kpiId)
+          return {
+            id: v.id,
+            value: safeParseNumber(v.value, 0, 0), // Negatif değerleri 0 yap
+            targetValue: v.targetValue,
+            period: v.period,
+            factoryId: v.factoryId,
+            kpi: {
+              id: v.kpiId,
+              number: v.kpiNumber,
+              description: kpi?.description || '',
+              themes: typeof kpi?.themes === 'string' ? kpi.themes : (kpi?.themes || []).join(','),
+              targetValue: v.targetValue
+            }
+          }
+        })
+    })
+
+    const previousKpiValues = await PerformanceMonitor.measure('process_previous_kpi_values', () => {
+      return kpiValues
+        .filter(v => v.period === previousPeriod)
+        .filter(v => v.value != null && !isNaN(v.value)) // Null/NaN değerleri filtrele
+        .map(v => {
+          const kpi = kpiMap.get(v.kpiId)
+          return {
+            id: v.id,
+            value: safeParseNumber(v.value, 0, 0), // Negatif değerleri 0 yap
+            targetValue: v.targetValue,
+            period: v.period,
+            factoryId: v.factoryId,
+            kpi: {
+              id: v.kpiId,
+              number: v.kpiNumber,
+              description: kpi?.description || '',
+              themes: typeof kpi?.themes === 'string' ? kpi.themes : (kpi?.themes || []).join(','),
+              targetValue: v.targetValue
+            }
+          }
+        })
+    })
+
+    // Ana hesaplamalar
+    const currentResult = calculator.calculateAggregateScore(currentKpiValues)
+    const previousResult = calculator.calculateAggregateScore(previousKpiValues)
+    
+    const avgSuccess = Math.round(currentResult.achievementRate)
+    const avgPrevSuccess = Math.round(previousResult.achievementRate)
+    const trend = KPIUtils.calculateTrend(avgSuccess, avgPrevSuccess)
+
+    // Tema bazında gruplandırma
+    const themeResults = calculator.groupByTheme(currentKpiValues)
+    
+    // Fabrika bazında gruplandırma (üst yönetim için)
+    const factoryResults = (userRole === 'UPPER_MANAGEMENT' || userRole === 'ADMIN') 
+      ? calculator.groupByFactory(currentKpiValues) 
+      : {}
+
+    const themes = Object.entries(themeResults).map(([name, result]) => ({
       name,
-      avg: count > 0 ? Math.round(sum / count) : 0,
-      count
+      avg: Math.round(result.achievementRate),
+      count: result.validCount
     }))
 
-    // Riskli KPI'lar (en son dönem bazında)
-    const risks = kpis.map(kpi => {
-      const target = kpi.targetValue ?? 100
-      const curr = kpi.kpiValues.find(v => v.period === currentPeriod)
-      const score = curr ? Math.min(100, (curr.value / target) * 100) : 0
-      return {
-        id: kpi.id,
-        number: kpi.number,
-        description: kpi.description,
-        success: Math.round(score),
-        targetValue: target,
-      }
-    }).sort((a, b) => a.success - b.success).slice(0, 10)
-
-    // Zaman çizgisi: seçili dönemler + önceki dönem (trend için)
-    const timelinePeriods = periods.length > 1 ? periods : [currentPeriod, previousPeriod]
-    const timelineData = await Promise.all(timelinePeriods.map(async (p) => {
-      const values = await prisma.kpiValue.findMany({ 
-        where: { 
-          period: p, 
-          factoryId: { in: accessibleFactoryIds }
-        } 
+    // Riskli KPI'lar (en son dönem bazında) - optimized
+    const currentPeriodKpis = kpiValues
+      .filter(v => v.period === currentPeriod)
+      .filter(v => v.value != null && !isNaN(v.value))
+      .map(v => {
+        const kpi = kpiMap.get(v.kpiId)
+        if (!kpi) return null
+        
+        const kpiValue = {
+          id: v.id,
+          value: v.value,
+          targetValue: v.targetValue,
+          period: v.period,
+          factoryId: v.factoryId,
+          kpi: {
+            id: v.kpiId,
+            number: v.kpiNumber,
+            description: kpi.description,
+            targetValue: v.targetValue
+          }
+        }
+        
+        const result = calculator.calculateSingleScore(kpiValue)
+        return {
+          id: kpi.id,
+          number: kpi.number,
+          description: kpi.description,
+          success: Math.round(result.achievementRate),
+          targetValue: v.targetValue ?? 100,
+          riskLevel: KPIUtils.getRiskLevel(result.achievementRate)
+        }
       })
-      const avg = values.length > 0 ? Math.round(values.reduce((s, v) => s + v.value, 0) / values.length) : 0
-      return { period: p, avgSuccess: avg }
+      .filter(Boolean)
+      .sort((a, b) => a.success - b.success)
+      .slice(0, 10)
+
+    const risks = currentPeriodKpis
+
+    // Zaman çizgisi: seçili dönemler + önceki dönem (trend için) - optimized
+    const timelinePeriods = periods.length > 1 ? periods : [currentPeriod, previousPeriod]
+    
+    const timelineKpiValues = await PerformanceMonitor.measure('process_timeline', () => {
+      return kpiValues
+        .filter(v => timelinePeriods.includes(v.period))
+        .filter(v => v.value != null && !isNaN(v.value))
+        .map(v => ({
+          id: v.id,
+          value: safeParseNumber(v.value, 0, 0),
+          targetValue: v.targetValue,
+          period: v.period,
+          factoryId: v.factoryId,
+          kpi: {
+            id: v.kpiId,
+            number: v.kpiNumber,
+            description: '',
+            targetValue: v.targetValue
+          }
+        }))
+    })
+    
+    const periodResults = calculator.groupByPeriod(timelineKpiValues)
+    
+    const timelineData = timelinePeriods.map(period => ({
+      period,
+      avgSuccess: Math.round(periodResults[period]?.achievementRate || 0)
     }))
     
     // Dönemleri kronolojik sırayla düzenle
     const timeline = timelineData.sort((a, b) => a.period.localeCompare(b.period))
 
     // Fabrika bazında performans özeti (üst yönetim için)
-    const factoryPerformance = Object.entries(factoryBreakdown).map(([factoryId, data]) => ({
+    const factoryPerformance = Object.entries(factoryResults).map(([factoryId, result]) => ({
       factoryId,
-      factoryName: data.name,
-      avgScore: data.count > 0 ? Math.round(data.score / data.count) : 0,
-      kpiCount: data.count
+      factoryName: factoryInfo[factoryId] || 'Bilinmeyen',
+      avgScore: Math.round(result.achievementRate),
+      kpiCount: result.validCount
     })).sort((a, b) => b.avgScore - a.avgScore)
 
-    return NextResponse.json({
+    const responseData = {
       overall: { 
         avgSuccess, 
-        trend, 
+        trend: trend.change, 
         kpiCount, 
         actionCount: actionsCount, 
         factoryCount: factoriesCount 
@@ -218,10 +312,52 @@ export async function GET(request: NextRequest) {
       accessibleFactories: accessibleFactoryIds.length,
       userRole,
       analysisScope: userRole === 'MODEL_FACTORY' ? 'single_factory' : 'multi_factory'
+    }
+
+    // Debug logging
+    console.log('📊 Analytics Overview Response:', {
+      userRole,
+      factoryId,
+      periods,
+      overallData: responseData.overall,
+      themesCount: responseData.themes.length,
+      risksCount: responseData.topRisks.length,
+      timelineCount: responseData.timeline.length
     })
+
+    // Cache the response
+    await analyticsCache.cacheOverview(userRole, accessibleFactoryIds, periods, responseData)
+
+    return NextResponse.json(responseData)
   } catch (error) {
     console.error('Analytics overview error:', error)
-    return NextResponse.json({ error: 'Sunucu hatası' }, { status: 500 })
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+    
+    // Specific error handling
+    if (error instanceof Error) {
+      if (error.message.includes('P2002')) {
+        return NextResponse.json({ 
+          error: 'Veritabanı kısıtlama hatası',
+          type: 'DATABASE_CONSTRAINT_ERROR',
+          timestamp: new Date().toISOString()
+        }, { status: 409 })
+      }
+      
+      if (error.message.includes('P2025')) {
+        return NextResponse.json({ 
+          error: 'Kayıt bulunamadı',
+          type: 'RECORD_NOT_FOUND',
+          timestamp: new Date().toISOString()
+        }, { status: 404 })
+      }
+    }
+    
+    return NextResponse.json({ 
+      error: 'Sunucu hatası', 
+      detail: error instanceof Error ? error.message : String(error),
+      type: 'INTERNAL_SERVER_ERROR',
+      timestamp: new Date().toISOString()
+    }, { status: 500 })
   }
 }
 

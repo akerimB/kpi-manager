@@ -262,3 +262,105 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Sunucu hatası' }, { status: 500 })
   }
 } 
+
+// Create action with optional KPI links and default steps
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { shCode, saCode, description, priority, responsibleUnit, kpiIds, defaultSteps, userRole } = body || {}
+
+    // Role guard: only upper management and admin
+    if (userRole === 'MODEL_FACTORY') {
+      return NextResponse.json({ error: 'Bu API\'ye erişim yetkiniz bulunmamaktadır' }, { status: 403 })
+    }
+
+    if ((!shCode && !saCode) || !description) {
+      return NextResponse.json({ error: 'shCode veya saCode ve description gereklidir' }, { status: 400 })
+    }
+
+    // Resolve SH (preferred) or fallback via SA to first SH
+    let sh = null as any
+    if (shCode) {
+      sh = await prisma.strategicTarget.findUnique({ where: { code: shCode } })
+    }
+    if (!sh && saCode) {
+      const goal = await prisma.strategicGoal.findUnique({ where: { code: saCode } })
+      if (goal) {
+        sh = await prisma.strategicTarget.findFirst({ where: { strategicGoalId: goal.id }, orderBy: { code: 'asc' } })
+      }
+    }
+    if (!sh) {
+      return NextResponse.json({ error: 'Geçersiz SH/SA kodu' }, { status: 400 })
+    }
+
+    // Generate action code: E<SA>.<SHIndex>.<seq>
+    const sa = await prisma.strategicGoal.findUnique({ where: { id: sh.strategicGoalId } })
+    const shIndexMatch = sh.code.match(/SH\d+\.(\d+)/)
+    const shIndex = shIndexMatch ? shIndexMatch[1] : '1'
+    const existingCount = await prisma.action.count({ where: { strategicTargetId: sh.id } })
+    const seq = existingCount + 1
+    const code = `E${(sa?.code || 'SA')}.${shIndex}.${seq}`
+
+    // Create action
+    const created = await prisma.action.create({
+      data: {
+        code,
+        description,
+        strategicTargetId: sh.id,
+        priority: (priority as string) || 'MEDIUM',
+        responsibleUnit: responsibleUnit || null
+      }
+    })
+
+    // Link KPIs if provided
+    if (Array.isArray(kpiIds) && kpiIds.length) {
+      await prisma.$transaction(
+        kpiIds.map((kpiId: string) =>
+          prisma.actionKpi.upsert({
+            where: { actionId_kpiId: { actionId: created.id, kpiId } },
+            update: {},
+            create: { actionId: created.id, kpiId }
+          })
+        )
+      )
+    }
+
+    // Create default steps
+    const stepsToCreate: Array<{ title: string; description?: string; dueDate?: Date | null }> =
+      Array.isArray(defaultSteps) && defaultSteps.length
+        ? defaultSteps.map((s: any) => ({
+            title: s.title,
+            description: s.description || null,
+            dueDate: s.dueDate ? new Date(s.dueDate) : null
+          }))
+        : [
+            { title: 'Kickoff & hedef netleştirme', description: 'SA/SH bağlamında kapsam', dueDate: null },
+            { title: 'Atölye/mentörlük planı', description: '90-gün sprint planı', dueDate: null },
+            { title: 'A3/Kaizen uygulama turu', description: 'Saha uygulaması', dueDate: null }
+          ]
+
+    await prisma.$transaction(
+      stepsToCreate.map(s =>
+        prisma.actionStep.create({
+          data: { actionId: created.id, title: s.title, description: s.description || null, dueDate: s.dueDate || null }
+        })
+      )
+    )
+
+    // Return enriched action
+    const enriched = await prisma.action.findUnique({
+      where: { id: created.id },
+      include: {
+        strategicTarget: { include: { strategicGoal: true } },
+        phase: true,
+        actionSteps: { orderBy: { createdAt: 'asc' } },
+        actionKpis: { include: { kpi: { select: { id: true, number: true, description: true, unit: true } } } }
+      }
+    })
+
+    return NextResponse.json(enriched)
+  } catch (error) {
+    console.error('Action create error:', error)
+    return NextResponse.json({ error: 'Sunucu hatası' }, { status: 500 })
+  }
+}

@@ -23,7 +23,7 @@ interface Notification {
 }
 
 interface NotificationPanelProps {
-  factoryId: string
+  factoryId?: string
   autoRefresh?: boolean
   limit?: number
 }
@@ -37,7 +37,10 @@ export default function NotificationPanel({ factoryId, autoRefresh = true, limit
   // Bildirimleri yükle
   const fetchNotifications = async () => {
     try {
-      const response = await fetch(`/api/notifications?factoryId=${factoryId}&limit=${limit}`)
+      const qs = new URLSearchParams()
+      if (factoryId) qs.set('factoryId', factoryId)
+      qs.set('limit', String(limit))
+      const response = await fetch(`/api/notifications?${qs.toString()}`)
       if (response.ok) {
         const data = await response.json()
         setNotifications(data.notifications || [])
@@ -74,6 +77,8 @@ export default function NotificationPanel({ factoryId, autoRefresh = true, limit
       return () => clearInterval(interval)
     }
   }, [factoryId, autoRefresh])
+
+
 
   // Yeni bildirimler oluştur (demo için)
   const generateNotifications = async () => {
@@ -190,6 +195,7 @@ export default function NotificationPanel({ factoryId, autoRefresh = true, limit
             >
               🔄 Yenile
             </button>
+
             <button
               onClick={() => setExpanded(!expanded)}
               className="text-sm text-gray-600 hover:text-gray-800"

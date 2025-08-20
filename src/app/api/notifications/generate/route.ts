@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { addNotifications } from '@/lib/notifications-store'
 
 // Bildirim türleri
 type NotificationType = 
@@ -22,9 +23,7 @@ export async function POST(request: NextRequest) {
   try {
     const { factoryId, period } = await request.json()
     
-    console.log('🔔 Generating notifications for:', { factoryId, period })
-
-    if (!factoryId) {
+    if (!factoryId || factoryId.trim() === '') {
       return NextResponse.json({ error: 'Factory ID gerekli' }, { status: 400 })
     }
 
@@ -39,6 +38,8 @@ export async function POST(request: NextRequest) {
         }
       }
     })
+
+
 
     if (!factory) {
       return NextResponse.json({ error: 'Fabrika bulunamadı' }, { status: 404 })
@@ -118,6 +119,8 @@ export async function POST(request: NextRequest) {
     // Bildirimleri oluştur
     const notifications: any[] = []
     
+
+    
     for (const kpiValue of factory.kpiValues) {
       for (const rule of rules) {
         if (rule.condition(kpiValue)) {
@@ -157,6 +160,8 @@ export async function POST(request: NextRequest) {
     const totalKpis = await prisma.kpi.count()
     const enteredKpis = factory.kpiValues.length
     
+
+    
     if (enteredKpis < totalKpis) {
       notifications.push({
         id: `KPI_ENTRY_REMINDER_${factoryId}_${Date.now()}`,
@@ -174,12 +179,19 @@ export async function POST(request: NextRequest) {
         isActive: true
       })
     }
+    
+
 
     // Bildirimleri önceliğe göre sırala
     notifications.sort((a, b) => {
       const priorityOrder = { critical: 4, high: 3, medium: 2, low: 1 }
       return priorityOrder[b.priority] - priorityOrder[a.priority]
     })
+
+    // Store'a ekle
+    if (notifications.length > 0) {
+      addNotifications(factoryId, notifications)
+    }
 
     return NextResponse.json({
       success: true,

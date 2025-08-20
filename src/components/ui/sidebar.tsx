@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BarChart3, Target, Calendar, TrendingUp, Settings as SettingsIcon, PieChart, Zap, FileText } from 'lucide-react'
+import { BarChart3, Target, Calendar, TrendingUp, Settings as SettingsIcon, PieChart, Zap, FileText, Bell } from 'lucide-react'
 import { getCurrentUser, startSessionMonitoring } from '@/lib/user-context'
 import { useEffect, useState } from 'react'
 
@@ -56,8 +56,13 @@ export default function Sidebar() {
     { name: 'KPI Girişi', href: '/kpi-entry', icon: Target, visible: isClient && userContext?.userRole === 'MODEL_FACTORY' },
     { name: 'Kanıt Yönetimi', href: '/evidence-management', icon: FileText, visible: isClient && userContext?.userRole === 'MODEL_FACTORY' },
     { name: 'Eylem / Faz İzleme', href: '/actions', icon: Calendar, visible: isClient && userContext?.userRole === 'UPPER_MANAGEMENT' },
+    { name: 'Kişisel Eylemler', href: '/user-actions', icon: Calendar, visible: isClient && !!userContext },
+    // Place Takvim and Uyarılar right above Ayarlar
     { name: 'Strateji İzleme', href: '/strategy', icon: TrendingUp, visible: isClient && userContext?.userRole === 'UPPER_MANAGEMENT' },
     { name: 'Etki Simülasyonu', href: '/simulation', icon: Zap, visible: isClient && !!userContext?.permissions?.canCreateSimulations },
+    { name: 'Takvim', href: '/calendar', icon: Calendar, visible: isClient && !!userContext },
+    { name: 'Bildirimler', href: '/notifications', icon: Bell, visible: isClient && !!userContext },
+    // Move Settings below Takvim and Uyarılar by ordering items earlier
     { name: 'Ayarlar', href: '/settings', icon: SettingsIcon, visible: true },
   ]
 

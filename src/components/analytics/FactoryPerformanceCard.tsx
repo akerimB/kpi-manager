@@ -192,7 +192,7 @@ export default function FactoryPerformanceCard({ data, loading }: Props) {
               <p className="text-sm font-medium text-gray-600 mb-3">Sektör Odağı</p>
               <div className="space-y-2">
                 {data.highlights.sectorFocus.slice(0, 3).map((sector, index) => (
-                  <div key={sector.sector} className="flex items-center justify-between">
+                  <div key={`sector-${sector.sector}-${index}`} className="flex items-center justify-between">
                     <span className="text-xs text-gray-700 truncate">
                       {sector.sector}
                     </span>
@@ -221,8 +221,8 @@ export default function FactoryPerformanceCard({ data, loading }: Props) {
           <CardContent>
             {data.highlights.critical.length > 0 ? (
               <div className="space-y-3">
-                {data.highlights.critical.slice(0, 5).map((kpi) => (
-                  <div key={kpi.number} className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
+                {data.highlights.critical.slice(0, 5).map((kpi, index) => (
+                  <div key={`critical-${kpi.number}-${index}`} className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
                     <div className="flex-1">
                       <p className="text-sm font-medium text-gray-900">
                         KPI {kpi.number}: {kpi.name}
@@ -261,8 +261,8 @@ export default function FactoryPerformanceCard({ data, loading }: Props) {
           <CardContent>
             {data.highlights.topPerforming.length > 0 ? (
               <div className="space-y-3">
-                {data.highlights.topPerforming.slice(0, 5).map((kpi) => (
-                  <div key={kpi.number} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                {data.highlights.topPerforming.slice(0, 5).map((kpi, index) => (
+                  <div key={`top-performing-${kpi.number}-${index}`} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
                     <div className="flex-1">
                       <p className="text-sm font-medium text-gray-900">
                         KPI {kpi.number}: {kpi.name}

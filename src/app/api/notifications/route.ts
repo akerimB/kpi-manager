@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-
-// Bildirimler için basit in-memory store (production'da Redis kullanılabilir)
-let notificationStore: Record<string, any[]> = {}
+import { getNotifications as storeGet, addNotifications as storeAdd, updateNotification as storeUpdate, getStats as storeStats } from '@/lib/notifications-store'
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,12 +8,11 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20')
     const onlyUnread = searchParams.get('unread') === 'true'
     
-    if (!factoryId) {
-      return NextResponse.json({ error: 'Factory ID gerekli' }, { status: 400 })
-    }
+    // If no factoryId provided, aggregate for all factories
 
-    // Store'dan bildirimleri al
-    const allNotifications = notificationStore[factoryId] || []
+    const allNotifications = storeGet(factoryId || undefined)
+    
+
     
     // Filtreleme
     let filteredNotifications = allNotifications.filter(n => n.isActive)
@@ -31,20 +27,13 @@ export async function GET(request: NextRequest) {
       .slice(0, limit)
     
     // İstatistikler
-    const stats = {
-      total: allNotifications.filter(n => n.isActive).length,
-      unread: allNotifications.filter(n => n.isActive && !n.isRead).length,
-      critical: allNotifications.filter(n => n.isActive && n.priority === 'critical').length,
-      high: allNotifications.filter(n => n.isActive && n.priority === 'high').length,
-      medium: allNotifications.filter(n => n.isActive && n.priority === 'medium').length,
-      low: allNotifications.filter(n => n.isActive && n.priority === 'low').length
-    }
+    const stats = storeStats(factoryId || undefined)
 
     return NextResponse.json({
       success: true,
       notifications,
       stats,
-      factoryId,
+      factoryId: factoryId || 'ALL',
       retrievedAt: new Date().toISOString()
     })
 
@@ -70,18 +59,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Factory ID gerekli' }, { status: 400 })
     }
 
-    // Bildirimleri store'a ekle
-    if (!notificationStore[factoryId]) {
-      notificationStore[factoryId] = []
-    }
-    
     if (notifications && Array.isArray(notifications)) {
-      notificationStore[factoryId].push(...notifications)
-      
-      // Eski bildirimleri temizle (son 100 bildirimi sakla)
-      notificationStore[factoryId] = notificationStore[factoryId]
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        .slice(0, 100)
+      storeAdd(factoryId, notifications)
     }
 
     return NextResponse.json({
@@ -115,26 +94,9 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Factory ID ve Notification ID gerekli' }, { status: 400 })
     }
 
-    const notifications = notificationStore[factoryId] || []
-    const notificationIndex = notifications.findIndex(n => n.id === notificationId)
-    
-    if (notificationIndex === -1) {
+    const ok = storeUpdate(factoryId, notificationId, action as any)
+    if (!ok) {
       return NextResponse.json({ error: 'Bildirim bulunamadı' }, { status: 404 })
-    }
-
-    // İşlemi uygula
-    switch (action) {
-      case 'read':
-        notifications[notificationIndex].isRead = true
-        break
-      case 'unread':
-        notifications[notificationIndex].isRead = false
-        break
-      case 'delete':
-        notifications[notificationIndex].isActive = false
-        break
-      default:
-        return NextResponse.json({ error: 'Geçersiz işlem' }, { status: 400 })
     }
 
     return NextResponse.json({

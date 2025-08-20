@@ -72,4 +72,3 @@ o	Sensitivity_Pillar: politika/senaryo etkilerini SH1–SH4 düzeyinde görün.
  
 8) Özet mesaj
 Bu çalışma, Model Fabrikaların bölgesel bağlamını (sektör kompozisyonu ve ekonomik büyüklük) KPI hedefleme ve başarı ölçümüne doğrudan bağlayan ölçeklenebilir bir çerçeve sunar. Parametrik yapı sayesinde yeni verilerle hızlı güncelleme ve politika değişikliklerine duyarlı analiz mümkündür.
-

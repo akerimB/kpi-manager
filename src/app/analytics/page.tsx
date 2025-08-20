@@ -3,13 +3,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { getCurrentUser, getUserApiParams } from '@/lib/user-context'
+import { useAnalyticsWebSocket } from '@/hooks/useWebSocket'
 import FactoryPerformanceCard from '@/components/analytics/FactoryPerformanceCard'
 import SectorImpactChart from '@/components/analytics/SectorImpactChart'
 import FactoryRankingCard from '@/components/analytics/FactoryRankingCard'
 import ThemeComparisonCard from '@/components/analytics/ThemeComparisonCard'
+import KPIPerformanceTable from '@/components/analytics/KPIPerformanceTable'
+import KnowledgeInsightsPanel from '@/components/analytics/KnowledgeInsightsPanel'
 import NotificationPanel from '@/components/notifications/NotificationPanel'
 import AIRecommendationsPanel from '@/components/ai/AIRecommendationsPanel'
 import ReportExportPanel from '@/components/reports/ReportExportPanel'
+import UpperManagementReportPanel from '@/components/reports/UpperManagementReportPanel'
 import ExecutiveSummaryPanel from '@/components/analytics/ExecutiveSummaryPanel'
 import { ChevronRight, BarChart3, TrendingUp, Scale, FileDown } from 'lucide-react'
 
@@ -21,8 +25,14 @@ export default function AnalyticsOverview() {
   const [sectorImpact, setSectorImpact] = useState<any>(null)
   const [factoryRanking, setFactoryRanking] = useState<any>(null)
   const [themeComparison, setThemeComparison] = useState<any>(null)
+  const [kpiPerformance, setKpiPerformance] = useState<any>(null)
   const [themeData, setThemeData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  
+  // Real-time WebSocket connection
+  const webSocket = useAnalyticsWebSocket()
+  const [realTimeUpdates, setRealTimeUpdates] = useState(0)
+  const [lastUpdateTime, setLastUpdateTime] = useState<string | null>(null)
   
   // Tab state'leri
   const [activeTab, setActiveTab] = useState('overview')
@@ -32,6 +42,7 @@ export default function AnalyticsOverview() {
   const [endPeriod, setEndPeriod] = useState<string>('2024-Q4')
   const [selectedFactory, setSelectedFactory] = useState<string>('')
   const [availableFactories, setAvailableFactories] = useState<any[]>([])
+  // Tema filtresi kaldırıldı; tüm temalar kullanılacak
 
   const allPeriods = [
     { value: '2024-Q4', label: '2024 4. Çeyrek' },
@@ -55,6 +66,12 @@ export default function AnalyticsOverview() {
       label: 'Genel Bakış', 
       icon: BarChart3, 
       description: 'Ana metrikler ve özet bilgiler' 
+    },
+    { 
+      id: 'ai_knowledge', 
+      label: 'AI İçgörüleri', 
+      icon: TrendingUp, 
+      description: 'KPI/SH tabanlı bilgi odaklı eylem önerileri' 
     },
     { 
       id: 'performance', 
@@ -112,6 +129,53 @@ export default function AnalyticsOverview() {
     setUser(getCurrentUser())
   }, [])
 
+  // Real-time update handlers
+  useEffect(() => {
+    if (!isClient || !user) return
+
+    // KPI değeri güncellendiğinde
+    const cleanupKPI = webSocket.onKPIValueUpdated((payload) => {
+      console.log('📊 Real-time KPI update received:', payload)
+      setRealTimeUpdates(prev => prev + 1)
+      setLastUpdateTime(new Date().toLocaleTimeString('tr-TR'))
+      
+      // Auto-refresh data if it affects current user's view
+      if (user.userRole === 'MODEL_FACTORY' && payload.factoryId === user.factoryId) {
+        // Model fabrika için kendi verisi güncellendiyse refresh
+        setTimeout(() => fetchData(), 1000) // 1 saniye delay ile
+      } else if (user.userRole === 'UPPER_MANAGEMENT') {
+        // Üst yönetim için herhangi bir güncelleme refresh tetikler
+        setTimeout(() => fetchData(), 1000)
+      }
+    })
+
+    // Analytics refresh needed
+    const cleanupRefresh = webSocket.onAnalyticsRefreshNeeded((payload) => {
+      console.log('🔄 Analytics refresh needed:', payload)
+      setLastUpdateTime(new Date().toLocaleTimeString('tr-TR'))
+      
+      // Check if current user/factory is affected
+      const isAffected = user.userRole === 'UPPER_MANAGEMENT' || 
+        (payload.affectedFactories.includes(user.factoryId))
+      
+      if (isAffected) {
+        setTimeout(() => fetchData(), 2000) // 2 saniye delay ile
+      }
+    })
+
+    // Bildirim oluşturulduğunda
+    const cleanupNotification = webSocket.onNotificationCreated((payload) => {
+      console.log('🔔 New notification:', payload)
+      // Notification panel kendi real-time güncellemesini yapacak
+    })
+
+    return () => {
+      cleanupKPI()
+      cleanupRefresh()
+      cleanupNotification()
+    }
+  }, [isClient, user, webSocket])
+
   // Fabrikalari yükle (üst yönetim için)
   useEffect(() => {
     if (!user || user.userRole === 'MODEL_FACTORY') return
@@ -119,24 +183,25 @@ export default function AnalyticsOverview() {
     const loadFactories = async () => {
       try {
         const response = await fetch('/api/factories')
-        const factories = await response.json()
-        setAvailableFactories(factories)
+        const data = await response.json()
+        setAvailableFactories(data.factories || [])
       } catch (error) {
         console.error('Factories fetch error:', error)
+        setAvailableFactories([])
       }
     }
     
     loadFactories()
   }, [user])
 
-  useEffect(() => {
+  // Data fetching function (extracted for reuse in real-time updates)
+  const fetchData = async () => {
     if (!user) return
     
     // selectedPeriods boş ise varsayılan değer kullan
     const periodsToUse = selectedPeriods.length === 0 ? ['2024-Q4'] : selectedPeriods
     
-    const fetchData = async () => {
-      setLoading(true)
+    setLoading(true)
       try {
         // Filtreleme parametreleri
         const baseParams = new URLSearchParams()
@@ -158,7 +223,27 @@ export default function AnalyticsOverview() {
 
         // Genel analytics
         const overviewRes = await fetch(`/api/analytics/overview?${baseParams.toString()}`)
+        if (!overviewRes.ok) {
+          throw new Error(`API Error: ${overviewRes.status} ${overviewRes.statusText}`)
+        }
         const overviewData = await overviewRes.json()
+        
+        // API'den dönen data'nın yapısını kontrol et
+        if (!overviewData || typeof overviewData !== 'object') {
+          throw new Error('Invalid API response structure')
+        }
+        
+        // overall nesnesinin var olduğundan emin ol
+        if (!overviewData.overall) {
+          overviewData.overall = {
+            avgSuccess: 0,
+            trend: 0,
+            kpiCount: 0,
+            actionCount: 0,
+            factoryCount: 0
+          }
+        }
+        
         setData(overviewData)
 
         // Tema analizi için ayrı API çağrısı
@@ -168,34 +253,71 @@ export default function AnalyticsOverview() {
           setThemeData(themeAnalytics)
         }
 
-        // Model fabrika kullanıcısı ise özel performans verisi (en son dönem için)
-        if (user.userRole === 'MODEL_FACTORY' && user.factoryId) {
-          const latestPeriod = selectedPeriods[selectedPeriods.length - 1]
-          const [performanceRes, sectorRes, rankingRes, themeRes] = await Promise.all([
-            fetch(`/api/analytics/factory-specific/performance-summary?factoryId=${user.factoryId}&period=${latestPeriod}`),
-            fetch(`/api/analytics/factory-specific/sector-impact?factoryId=${user.factoryId}&period=${latestPeriod}`),
-            fetch(`/api/analytics/benchmark/factory-ranking?period=${latestPeriod}`),
-            fetch(`/api/analytics/benchmark/theme-comparison?factoryId=${user.factoryId}&period=${latestPeriod}`)
-          ])
-          
-          const performanceData = await performanceRes.json()
-          const sectorData = await sectorRes.json()
-          const rankingData = rankingRes.ok ? await rankingRes.json() : null
-          const themeData = themeRes.ok ? await themeRes.json() : null
-          
-          setFactoryPerformance(performanceData)
-          setSectorImpact(sectorData)
-          setFactoryRanking(rankingData)
-          setThemeComparison(themeData)
+        // Benchmark verileri (her iki rol için de)
+        const latestPeriod = periodsToUse[periodsToUse.length - 1]
+        const benchmarkParams = new URLSearchParams()
+        periodsToUse.forEach(p => benchmarkParams.append('periods', p))
+        if (selectedFactory) benchmarkParams.set('factoryId', selectedFactory)
+
+        // Factory ranking - tüm temalar
+        const rankingParams = new URLSearchParams(benchmarkParams)
+
+        // Theme comparison params
+        const themeParams = new URLSearchParams()
+        // çoklu dönem
+        periodsToUse.forEach(p => themeParams.append('periods', p))
+        // cohort belirleme: model fabrika veya üst yönetimde seçili fabrika
+        if (user.factoryId) {
+          themeParams.set('factoryId', user.factoryId)
+        } else if (selectedFactory) {
+          themeParams.set('factoryId', selectedFactory)
         }
+        ;(['LEAN','DIGITAL','GREEN','RESILIENCE']).forEach(t => themeParams.append('themes', t))
+
+        const kpiParams = new URLSearchParams()
+        periodsToUse.forEach(p => kpiParams.append('periods', p))
+        if (user.factoryId) kpiParams.set('factoryId', user.factoryId)
+        else if (selectedFactory) kpiParams.set('factoryId', selectedFactory)
+
+        const [rankingRes, themeCmpRes, kpiPerfRes] = await Promise.all([
+          fetch(`/api/analytics/benchmark/factory-ranking?${rankingParams.toString()}`),
+          fetch(`/api/analytics/benchmark/theme-comparison?${themeParams.toString()}`),
+          fetch(`/api/analytics/kpi-performance?${kpiParams.toString()}`)
+        ])
+
+        const rankingData = rankingRes.ok ? await rankingRes.json() : null
+        const themeCmpData = themeCmpRes.ok ? await themeCmpRes.json() : null
+        const kpiPerfData = kpiPerfRes.ok ? await kpiPerfRes.json() : null
+        setFactoryRanking(rankingData)
+        setThemeComparison(themeCmpData)
+        setKpiPerformance(kpiPerfData)
       } catch (error) {
         console.error('Analytics fetch error:', error)
-        setData(null)
+        
+        // Fallback data structure for graceful error handling
+        setData({
+          overall: {
+            avgSuccess: 0,
+            trend: 0,
+            kpiCount: 0,
+            actionCount: 0,
+            factoryCount: 0
+          },
+          themes: [],
+          topRisks: [],
+          timeline: [],
+          factoryPerformance: [],
+          accessibleFactories: 0,
+          userRole: user.userRole,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        })
       } finally {
         setLoading(false)
       }
-    }
+  }
 
+  // Initial data load
+  useEffect(() => {
     fetchData()
   }, [user, selectedPeriods, selectedFactory])
 
@@ -234,7 +356,27 @@ export default function AnalyticsOverview() {
       <div className="sticky top-0 z-10 bg-white shadow-sm border-b border-gray-200 -mx-6 px-6 py-4">
         {/* Header and Quick Filters */}
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h1>
+          <div className="flex items-center space-x-4">
+            <h1 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h1>
+            
+            {/* Real-time connection status */}
+            <div className="flex items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${webSocket.state.connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <span className="text-xs text-gray-500">
+                {webSocket.state.connected ? 'Canlı' : 'Bağlantı Yok'}
+              </span>
+              {realTimeUpdates > 0 && (
+                <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
+                  +{realTimeUpdates} güncelleme
+                </span>
+              )}
+              {lastUpdateTime && (
+                <span className="text-xs text-gray-400">
+                  Son: {lastUpdateTime}
+                </span>
+              )}
+            </div>
+          </div>
           
           {/* Compact Filters */}
           <div className="flex items-center space-x-3">
@@ -275,7 +417,7 @@ export default function AnalyticsOverview() {
                   className="px-3 py-1 text-sm border border-gray-300 rounded-md bg-white min-w-[120px]"
                 >
                   <option value="">Tüm Fabrikalar</option>
-                  {availableFactories.map(factory => (
+                  {Array.isArray(availableFactories) && availableFactories.map(factory => (
                     <option key={factory.id} value={factory.id}>{factory.name}</option>
                   ))}
                 </select>
@@ -312,9 +454,9 @@ export default function AnalyticsOverview() {
         {/* Quick Stats */}
         {data && (
           <div className="mt-3 flex items-center space-x-6 text-xs text-gray-500">
-            <span><strong>{data.accessibleFactories}</strong> fabrika</span>
+            <span><strong>{data.accessibleFactories || 0}</strong> fabrika</span>
             <span><strong>{startPeriod}</strong> - <strong>{endPeriod}</strong> ({selectedPeriods.length} dönem)</span>
-            <span><strong>{data.overall.kpiCount}</strong> KPI</span>
+            <span><strong>{data.overall?.kpiCount || 0}</strong> KPI</span>
             <span className="hidden md:inline">
               {user.userRole === 'MODEL_FACTORY' ? 'Model Fabrika' : 'Üst Yönetim'} görünümü
             </span>
@@ -327,6 +469,25 @@ export default function AnalyticsOverview() {
         {/* GENEL BAKIŞ TAB */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
+            {/* Error Message */}
+            {data?.error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <div className="text-red-400 mr-3">⚠️</div>
+                  <div>
+                    <h3 className="text-sm font-medium text-red-800">Veri Yükleme Hatası</h3>
+                    <p className="text-sm text-red-700 mt-1">{data.error}</p>
+                    <button 
+                      onClick={() => fetchData()} 
+                      className="text-sm text-red-800 underline mt-2 hover:text-red-900"
+                    >
+                      Tekrar Dene
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Üst Yönetim için Executive Summary */}
             {user.userRole === 'UPPER_MANAGEMENT' && (
               <ExecutiveSummaryPanel period={selectedPeriods[selectedPeriods.length - 1] || '2024-Q4'} userRole={user.userRole} />
@@ -338,7 +499,7 @@ export default function AnalyticsOverview() {
           <CardHeader className="pb-2"><CardTitle className="text-sm">Genel Başarı</CardTitle></CardHeader>
           <CardContent>
                   <div className="text-3xl font-bold">{data?.overall?.avgSuccess || 0}%</div>
-                  <CardDescription>Trend: {data?.overall?.trend >= 0 ? '+' : ''}{data?.overall?.trend || 0}</CardDescription>
+                  <CardDescription>Trend: {(data?.overall?.trend || 0) >= 0 ? '+' : ''}{data?.overall?.trend || 0}</CardDescription>
           </CardContent>
         </Card>
         <Card>
@@ -364,8 +525,8 @@ export default function AnalyticsOverview() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-                    {data?.themes?.map((t: any) => (
-                <div key={t.name}>
+                    {data?.themes?.map((t: any, index: number) => (
+                <div key={`theme-${t.name}-${index}`}>
                   <div className="flex justify-between text-sm"><span>{t.name}</span><span>{t.avg}%</span></div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${t.avg}%` }}></div>
@@ -383,8 +544,8 @@ export default function AnalyticsOverview() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-                    {data?.topRisks?.map((r: any) => (
-                <div key={r.id} className="flex justify-between text-sm border-b pb-1">
+                    {data?.topRisks?.map((r: any, index: number) => (
+                <div key={`risk-${r.id}-${index}`} className="flex justify-between text-sm border-b pb-1">
                   <span>#{r.number} {r.description}</span>
                   <span className={r.success < 40 ? 'text-red-600' : r.success < 60 ? 'text-yellow-600' : 'text-gray-700'}>{r.success}%</span>
                 </div>
@@ -402,8 +563,8 @@ export default function AnalyticsOverview() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-4 text-sm">
-                  {data?.timeline?.map((p: any) => (
-              <div key={p.period} className="p-3 bg-gray-50 rounded border flex items-center justify-between">
+                  {data?.timeline?.map((p: any, index: number) => (
+              <div key={`timeline-${p.period}-${index}`} className="p-3 bg-gray-50 rounded border flex items-center justify-between">
                 <span>{p.period}</span>
                 <span className="font-medium">{p.avgSuccess}</span>
                     </div>
@@ -470,18 +631,8 @@ export default function AnalyticsOverview() {
               </Card>
             )}
             
-            {/* Performans detaylarını burada gösterebiliriz */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Detaylı Performans Analizi</CardTitle>
-                <CardDescription>KPI bazında performans verileri</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-gray-500 text-center py-8">
-                  Performans detayları yakında eklenecek...
-                </div>
-              </CardContent>
-            </Card>
+            {/* KPI Bazında Detaylı Performans */}
+            <KPIPerformanceTable data={kpiPerformance} loading={loading} />
           </div>
         )}
 
@@ -527,8 +678,8 @@ export default function AnalyticsOverview() {
                 <CardContent>
                   {themeData ? (
                     <div className="space-y-4">
-                      {themeData.trends?.map((trend: any) => (
-                        <div key={trend.theme} className="space-y-2">
+                      {themeData.trends?.map((trend: any, index: number) => (
+                        <div key={`trend-${trend.theme}-${index}`} className="space-y-2">
                           <div className="flex justify-between items-center">
                             <span className="font-medium">{trend.theme}</span>
                             <span className={`text-sm ${trend.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -567,7 +718,7 @@ export default function AnalyticsOverview() {
                   {themeData?.factoryComparison ? (
                     <div className="space-y-3">
                       {themeData.factoryComparison.slice(0, 5).map((factory: any, index: number) => (
-                        <div key={factory.factoryId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div key={`factory-comparison-${factory.factoryId}-${index}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                           <div className="flex items-center space-x-3">
                             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold ${
                               index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : 'bg-blue-500'
@@ -603,8 +754,8 @@ export default function AnalyticsOverview() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {themeData?.targets?.map((target: any) => (
-                    <div key={target.theme} className="space-y-3">
+                  {themeData?.targets?.map((target: any, index: number) => (
+                    <div key={`target-${target.theme}-${index}`} className="space-y-3">
                       <div className="flex justify-between items-center">
                         <h4 className="font-medium">{target.theme}</h4>
                         <span className={`text-sm ${target.achievement >= 100 ? 'text-green-600' : target.achievement >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
@@ -652,7 +803,7 @@ export default function AnalyticsOverview() {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {themeData?.recommendations?.map((rec: any, index: number) => (
-                    <div key={index} className={`p-4 border-l-4 rounded-lg ${
+                    <div key={`recommendation-${rec.theme}-${index}`} className={`p-4 border-l-4 rounded-lg ${
                       rec.priority === 'high' ? 'border-red-500 bg-red-50' :
                       rec.priority === 'medium' ? 'border-yellow-500 bg-yellow-50' :
                       'border-blue-500 bg-blue-50'
@@ -686,6 +837,8 @@ export default function AnalyticsOverview() {
         {/* KARŞILAŞTIRMA TAB */}
         {activeTab === 'comparison' && (
           <div className="space-y-6">
+            {/* Tema filtresi kaldırıldı: tüm temalar varsayılan */}
+
             {/* Model Fabrika için karşılaştırma bileşenleri */}
             {user.userRole === 'MODEL_FACTORY' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -706,17 +859,41 @@ export default function AnalyticsOverview() {
             )}
             
             {/* Benchmark analizleri */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Benchmark Analizi</CardTitle>
-                <CardDescription>Sektör ve rekabet karşılaştırmaları</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-gray-500 text-center py-8">
-                  Benchmark analizleri yakında eklenecek...
-                </div>
-              </CardContent>
-            </Card>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Fabrika Sıralaması</CardTitle>
+                  <CardDescription>Seçili dönem(ler) ve filtrelere göre</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <FactoryRankingCard 
+                    data={factoryRanking}
+                    currentFactoryId={user.factoryId}
+                    loading={loading}
+                  />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Tema Karşılaştırması</CardTitle>
+                  <CardDescription>Fabrika/Tema bazında performans</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ThemeComparisonCard 
+                    data={themeComparison}
+                    loading={loading}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
+
+        {/* AI KNOWLEDGE TAB */}
+        {activeTab === 'ai_knowledge' && (
+          <div className="space-y-6">
+            <KnowledgeInsightsPanel periods={selectedPeriods} factoryId={user.userRole==='MODEL_FACTORY'?user.factoryId: (selectedFactory||undefined)} />
           </div>
         )}
 
@@ -731,6 +908,11 @@ export default function AnalyticsOverview() {
             {/* Rapor İndirme paneli */}
             {user.userRole === 'MODEL_FACTORY' && (
               <ReportExportPanel factoryId={user.factoryId} period="2024-Q4" />
+            )}
+            
+            {/* Üst Yönetim Raporları */}
+            {user.userRole === 'UPPER_MANAGEMENT' && (
+              <UpperManagementReportPanel defaultPeriod={selectedPeriods[selectedPeriods.length - 1] || '2024-Q4'} />
             )}
             
             {/* Genel raporlar */}

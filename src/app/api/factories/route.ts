@@ -1,31 +1,36 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const userRole = searchParams.get('userRole') || 'MODEL_FACTORY'
-    const factoryId = searchParams.get('factoryId')
-
-    let whereCondition: any = {
-      isActive: true
-    }
-    
-    // Model fabrika kullanıcıları sadece kendi fabrikalarını görebilir
-    if (userRole === 'MODEL_FACTORY' && factoryId) {
-      whereCondition.id = factoryId
-    }
-
     const factories = await prisma.modelFactory.findMany({
-      where: whereCondition,
+      select: {
+        id: true,
+        name: true,
+        city: true,
+        region: true,
+        createdAt: true
+      },
       orderBy: {
         name: 'asc'
       }
     })
 
-    return NextResponse.json(factories)
+    return NextResponse.json({
+      success: true,
+      factories,
+      total: factories.length
+    })
+
   } catch (error) {
-    console.error('Factories fetch error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('❌ Factories fetch error:', error)
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: 'Fabrikalar getirilemedi',
+        detail: String(error)
+      }, 
+      { status: 500 }
+    )
   }
-} 
+}

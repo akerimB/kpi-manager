@@ -6,26 +6,27 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const factoryId = searchParams.get('factoryId')
     const period = searchParams.get('period') || '2024-Q4'
+    const periodsParam = searchParams.getAll('periods')
+    const periods = periodsParam.length > 0 ? periodsParam : [period]
+    const selectedThemes = searchParams.getAll('themes')
+    const selectedFactoryIds = searchParams.getAll('factoryIds')
     
-    console.log('🎨 Theme Comparison API called:', { factoryId, period })
-
-    if (!factoryId) {
-      return NextResponse.json({ error: 'Factory ID gerekli' }, { status: 400 })
-    }
+    console.log('🎨 Theme Comparison API called:', { factoryId, periods, selectedFactoryIds, selectedThemes })
 
     // Temaları tanımla
-    const themes = [
+    const allThemes = [
       { code: 'LEAN', name: 'Yalın Dönüşüm', color: '#3B82F6' },
       { code: 'DIGITAL', name: 'Dijital Dönüşüm', color: '#8B5CF6' },
       { code: 'GREEN', name: 'Yeşil Dönüşüm', color: '#10B981' },
       { code: 'RESILIENCE', name: 'Dirençlilik', color: '#F59E0B' }
     ]
+    const themes = selectedThemes.length ? allThemes.filter(t => selectedThemes.includes(t.code)) : allThemes
 
-    // Bu fabrika ve tüm fabrikaların tema bazlı performansını al
+    // Tüm fabrikaların (ve varsa belirli fabrikanın) tema bazlı performansını al
     const allFactoriesData = await prisma.modelFactory.findMany({
       include: {
         kpiValues: {
-          where: { period },
+          where: { period: { in: periods } },
           include: {
             kpi: {
               select: {
@@ -46,9 +47,9 @@ export async function GET(request: NextRequest) {
       let allFactoriesTotal = 0
       let allFactoriesCount = 0
       
-      // Bu fabrikanın bu temadaki performansı
-      let currentFactoryTotal = 0
-      let currentFactoryCount = 0
+      // Seçili cohort (tek fabrika ya da fabrika listesi) temadaki performans
+      let cohortTotal = 0
+      let cohortCount = 0
 
       allFactoriesData.forEach(factory => {
         factory.kpiValues.forEach(kpiValue => {
@@ -61,16 +62,20 @@ export async function GET(request: NextRequest) {
             allFactoriesTotal += achievement
             allFactoriesCount++
             
-            if (factory.id === factoryId) {
-              currentFactoryTotal += achievement
-              currentFactoryCount++
+            const inCohort = factoryId 
+              ? factory.id === factoryId 
+              : (selectedFactoryIds.length > 0 ? selectedFactoryIds.includes(factory.id) : true)
+            if (inCohort) {
+              cohortTotal += achievement
+              cohortCount++
             }
           }
         })
       })
 
       const industryAverage = allFactoriesCount > 0 ? allFactoriesTotal / allFactoriesCount : 0
-      const factoryScore = currentFactoryCount > 0 ? currentFactoryTotal / currentFactoryCount : 0
+      const cohortAverage = cohortCount > 0 ? cohortTotal / cohortCount : 0
+      const factoryScore = cohortAverage
       
       // Percentile hesaplama (bu fabrika kaç fabrikadan daha iyi)
       const factoryScores = allFactoriesData.map(factory => {
@@ -99,8 +104,8 @@ export async function GET(request: NextRequest) {
         factoryScore: Math.round(factoryScore * 100) / 100,
         industryAverage: Math.round(industryAverage * 100) / 100,
         percentile,
-        kpiCount: currentFactoryCount,
-        performance: factoryScore >= industryAverage ? 'above' : 'below',
+        kpiCount: cohortCount,
+        performance: factoryScore > industryAverage ? 'above' : (factoryScore < industryAverage ? 'below' : 'equal'),
         gap: Math.round((factoryScore - industryAverage) * 100) / 100
       }
     })
@@ -125,7 +130,7 @@ export async function GET(request: NextRequest) {
       summary: {
         overallScore: Math.round(overallFactoryScore * 100) / 100,
         industryAverage: Math.round(overallIndustryAverage * 100) / 100,
-        overallPerformance: overallFactoryScore >= overallIndustryAverage ? 'above' : 'below',
+        overallPerformance: overallFactoryScore > overallIndustryAverage ? 'above' : (overallFactoryScore < overallIndustryAverage ? 'below' : 'equal'),
         strongestTheme: {
           code: strongestTheme.theme,
           name: strongestTheme.themeName,

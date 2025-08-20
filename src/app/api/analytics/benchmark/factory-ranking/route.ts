@@ -130,9 +130,9 @@ export async function GET(request: NextRequest) {
     // İstatistikler
     const stats = {
       totalFactories: benchmarkData.length,
-      averageScore: benchmarkData.reduce((sum, f) => sum + f.averageScore, 0) / benchmarkData.length,
+      averageScore: benchmarkData.length > 0 ? benchmarkData.reduce((sum, f) => sum + f.averageScore, 0) / benchmarkData.length : 0,
       topPerformers: benchmarkData.filter(f => f.performanceLevel === 'platinum' || f.performanceLevel === 'gold').length,
-      period,
+      period: periods.length > 1 ? `${periods[0]} - ${currentPeriod}` : currentPeriod,
       theme: theme || 'all',
       kpiCount: rankedData[0]?.totalKpis || 0
     }

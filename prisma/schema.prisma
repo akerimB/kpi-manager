@@ -381,3 +381,56 @@ model Setting {
 
   @@map("settings")
 }
+
+// ============ KULLANICI TANIMLI EYLEMLER ============
+
+model UserAction {
+  id             String          @id @default(cuid())
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title          String
+  description    String?
+  saCode         String?
+  shCode         String?
+  kpiIds         String?         // JSON array of KPI IDs
+  priority       String          @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  status         String          @default("PLANNED") // PLANNED, IN_PROGRESS, DONE, CANCELLED
+  linkedActionId String?
+  linkedAction   Action?         @relation(fields: [linkedActionId], references: [id])
+  startDate      DateTime?
+  endDate        DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  events         UserActionEvent[]
+  notes          UserActionNote[]
+
+  @@index([userId])
+  @@map("user_actions")
+}
+
+model UserActionEvent {
+  id            String     @id @default(cuid())
+  userActionId  String
+  userAction    UserAction @relation(fields: [userActionId], references: [id], onDelete: Cascade)
+  title         String
+  description   String?
+  start         DateTime
+  end           DateTime?
+  location      String?
+  createdAt     DateTime   @default(now())
+
+  @@index([userActionId])
+  @@map("user_action_events")
+}
+
+model UserActionNote {
+  id            String     @id @default(cuid())
+  userActionId  String
+  userAction    UserAction @relation(fields: [userActionId], references: [id], onDelete: Cascade)
+  content       String
+  createdAt     DateTime   @default(now())
+
+  @@index([userActionId])
+  @@map("user_action_notes")
+}
