@@ -77,8 +77,6 @@ export async function POST(request: NextRequest) {
     }
     
     if (!prismaClient) {
-    
-    if (!prisma) {
       console.log('🔄 Prisma mevcut değil, mock data kullanılıyor...')
       
       // Fallback: mock data kullan

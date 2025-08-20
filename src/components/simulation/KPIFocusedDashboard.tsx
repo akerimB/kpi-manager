@@ -36,7 +36,7 @@ export default function KPIFocusedDashboard({
   loading = false,
   useSimpleTest = false,
   onToggleSimpleTest,
-  useMockKPI = false,
+  useMockKPI = true, // Default olarak mock kullan
   onToggleMockKPI
 }: KPIFocusedDashboardProps) {
 
@@ -82,19 +82,29 @@ export default function KPIFocusedDashboard({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <p className="text-sm text-gray-600 mb-2">
-                {scenarios.length} senaryo hazır • {scenarios.reduce((sum, s) => sum + s.actions.length, 0)} eylem
-              </p>
-              <div className="flex gap-2">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <p className="text-sm text-gray-600 mb-2">
+                  {scenarios.length} senaryo hazır • {scenarios.reduce((sum, s) => sum + s.actions.length, 0)} eylem
+                  {useMockKPI && (
+                    <span className="ml-2 text-blue-600 font-medium">
+                      🏭 Mock Model Fabrikaları kullanılıyor
+                    </span>
+                  )}
+                  {useSimpleTest && (
+                    <span className="ml-2 text-gray-600 font-medium">
+                      🔧 Basit test kullanılıyor
+                    </span>
+                  )}
+                </p>
+                <div className="flex gap-2">
                 {scenarios.map((scenario) => (
                   <span key={scenario.id} className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded">
                     {scenario.name} ({scenario.probability}%)
                   </span>
                 ))}
+                </div>
               </div>
-            </div>
             <Button 
               onClick={runKPIAnalysis}
               disabled={loading || scenarios.length === 0}

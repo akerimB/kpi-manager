@@ -54,7 +54,7 @@ export default function SimulationPage() {
   const [running, setRunning] = useState(false)
   const [activeTab, setActiveTab] = useState<'kpi' | 'advanced' | 'scenarios' | 'charts' | 'ai'>('kpi')
   const [useSimpleTest, setUseSimpleTest] = useState(false)
-  const [useMockKPI, setUseMockKPI] = useState(false)
+  const [useMockKPI, setUseMockKPI] = useState(true) // Default olarak mock kullan
   const [scenarios, setScenarios] = useState<any[]>([
     {
       id: 'scenario_1',

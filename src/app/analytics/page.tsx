@@ -15,7 +15,8 @@ import AIRecommendationsPanel from '@/components/ai/AIRecommendationsPanel'
 import ReportExportPanel from '@/components/reports/ReportExportPanel'
 import UpperManagementReportPanel from '@/components/reports/UpperManagementReportPanel'
 import ExecutiveSummaryPanel from '@/components/analytics/ExecutiveSummaryPanel'
-import { ChevronRight, BarChart3, TrendingUp, Scale, FileDown } from 'lucide-react'
+import IndustryAnalysisPanel from '@/components/analytics/IndustryAnalysisPanel'
+import { ChevronRight, BarChart3, TrendingUp, Scale, FileDown, Factory } from 'lucide-react'
 
 export default function AnalyticsOverview() {
   const [user, setUser] = useState<any>(null)
@@ -78,6 +79,12 @@ export default function AnalyticsOverview() {
       label: 'Performans', 
       icon: TrendingUp, 
       description: 'KPI detayları ve sektörel analiz' 
+    },
+    { 
+      id: 'industry', 
+      label: 'Sanayi Analizi', 
+      icon: Factory, 
+      description: 'Sektörel performans ve sanayi odaklı analizler' 
     },
     { 
       id: 'themes', 
@@ -832,6 +839,15 @@ export default function AnalyticsOverview() {
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {/* SANAYİ ANALİZİ TAB */}
+        {activeTab === 'industry' && (
+          <IndustryAnalysisPanel 
+            userRole={user.userRole}
+            factoryId={user.userRole === 'MODEL_FACTORY' ? user.factoryId : (selectedFactory || undefined)}
+            period={selectedPeriods[selectedPeriods.length - 1] || '2024-Q4'}
+          />
         )}
 
         {/* KARŞILAŞTIRMA TAB */}
