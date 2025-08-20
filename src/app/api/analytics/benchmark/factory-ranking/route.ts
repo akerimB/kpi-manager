@@ -4,11 +4,16 @@ import { prisma } from '@/lib/prisma'
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const period = searchParams.get('period') || '2024-Q4'
+    
+    // Çoklu periyot desteği
+    const periodsParam = searchParams.getAll('periods')
+    const periods = periodsParam.length > 0 ? periodsParam : [searchParams.get('period') || '2024-Q4']
+    const currentPeriod = periods[periods.length - 1] // En son dönem
+    
     const kpiId = searchParams.get('kpiId')
     const theme = searchParams.get('theme') // LEAN, DIGITAL, GREEN, RESILIENCE
     
-    console.log('🏆 Factory Ranking API called:', { period, kpiId, theme })
+    console.log('🏆 Factory Ranking API called:', { periods, currentPeriod, kpiId, theme })
 
     // KPI filtresi oluştur
     let kpiFilter: any = {}
@@ -19,12 +24,12 @@ export async function GET(request: NextRequest) {
       kpiFilter.themes = { contains: theme }
     }
 
-    // Fabrika performans verilerini al
+    // Fabrika performans verilerini al (çoklu periyot)
     const factoryPerformance = await prisma.modelFactory.findMany({
       include: {
         kpiValues: {
           where: {
-            period,
+            period: { in: periods },
             kpi: kpiFilter
           },
           include: {
@@ -43,33 +48,52 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Benchmark hesaplamaları
+    // Benchmark hesaplamaları (çoklu periyot ortalaması)
     const benchmarkData = factoryPerformance.map(factory => {
       const values = factory.kpiValues
       
-      // KPI başarı oranları hesapla
+      // KPI bazında periyot ortalamaları hesapla
+      const kpiAverages: Record<string, { totalScore: number; count: number; periods: string[] }> = {}
+      
+      values.forEach(kpiValue => {
+        const kpiKey = kpiValue.kpi.id
+        if (!kpiAverages[kpiKey]) {
+          kpiAverages[kpiKey] = { totalScore: 0, count: 0, periods: [] }
+        }
+        
+        const target = kpiValue.kpi.targetValue || 100
+        const achievementRate = Math.min((kpiValue.value / target) * 100, 100)
+        
+        kpiAverages[kpiKey].totalScore += achievementRate
+        kpiAverages[kpiKey].count++
+        kpiAverages[kpiKey].periods.push(kpiValue.period)
+      })
+      
+      // KPI ortalamalarını hesapla
       let totalScore = 0
       let achievedKpis = 0
-      let totalKpis = values.length
+      let totalKpis = Object.keys(kpiAverages).length
       
-      const kpiScores = values.map(kpiValue => {
-        const target = kpiValue.kpi.targetValue || 100
-        const current = kpiValue.value
-        const achievementRate = Math.min((current / target) * 100, 100)
+      const kpiScores = Object.entries(kpiAverages).map(([kpiId, avg]) => {
+        const kpiValue = values.find(v => v.kpi.id === kpiId)
+        if (!kpiValue) return null
         
-        totalScore += achievementRate
-        if (achievementRate >= 80) achievedKpis++
+        const averageAchievementRate = avg.totalScore / avg.count
+        
+        totalScore += averageAchievementRate
+        if (averageAchievementRate >= 80) achievedKpis++
         
         return {
           kpiNumber: kpiValue.kpi.number,
           description: kpiValue.kpi.description,
-          current,
-          target,
-          achievementRate: Math.round(achievementRate * 100) / 100,
+          current: Math.round((avg.totalScore / avg.count) * 100) / 100,
+          target: kpiValue.kpi.targetValue || 100,
+          achievementRate: Math.round(averageAchievementRate * 100) / 100,
           unit: kpiValue.kpi.unit,
-          themes: kpiValue.kpi.themes?.split(',') || []
+          themes: kpiValue.kpi.themes?.split(',') || [],
+          periods: avg.periods
         }
-      })
+      }).filter(Boolean)
 
       const averageScore = totalKpis > 0 ? totalScore / totalKpis : 0
       

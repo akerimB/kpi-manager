@@ -11,7 +11,7 @@ import NotificationPanel from '@/components/notifications/NotificationPanel'
 import AIRecommendationsPanel from '@/components/ai/AIRecommendationsPanel'
 import ReportExportPanel from '@/components/reports/ReportExportPanel'
 import ExecutiveSummaryPanel from '@/components/analytics/ExecutiveSummaryPanel'
-import { ChevronRight, BarChart3, TrendingUp, Scale, FileDown, Filter, X } from 'lucide-react'
+import { ChevronRight, BarChart3, TrendingUp, Scale, FileDown } from 'lucide-react'
 
 export default function AnalyticsOverview() {
   const [user, setUser] = useState<any>(null)
@@ -21,14 +21,15 @@ export default function AnalyticsOverview() {
   const [sectorImpact, setSectorImpact] = useState<any>(null)
   const [factoryRanking, setFactoryRanking] = useState<any>(null)
   const [themeComparison, setThemeComparison] = useState<any>(null)
+  const [themeData, setThemeData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   
   // Tab state'leri
   const [activeTab, setActiveTab] = useState('overview')
-  const [showFilters, setShowFilters] = useState(false)
   
   // Filtreleme state'leri
-  const [selectedPeriods, setSelectedPeriods] = useState<string[]>(['2024-Q4'])
+  const [startPeriod, setStartPeriod] = useState<string>('2024-Q3')
+  const [endPeriod, setEndPeriod] = useState<string>('2024-Q4')
   const [selectedFactory, setSelectedFactory] = useState<string>('')
   const [availableFactories, setAvailableFactories] = useState<any[]>([])
 
@@ -45,29 +46,7 @@ export default function AnalyticsOverview() {
     { value: '2022-Q3', label: '2022 3. Çeyrek' },
   ]
 
-  // Hızlı dönem seçimi presetleri
-  const quickSelections = [
-    { 
-      label: 'Son Çeyrek', 
-      periods: ['2024-Q4'],
-      description: 'Sadece mevcut çeyrek'
-    },
-    { 
-      label: 'Son 2 Çeyrek', 
-      periods: ['2024-Q3', '2024-Q4'],
-      description: 'Q3 + Q4 2024'
-    },
-    { 
-      label: 'Son 4 Çeyrek', 
-      periods: ['2024-Q1', '2024-Q2', '2024-Q3', '2024-Q4'],
-      description: 'Tüm 2024 yılı'
-    },
-    { 
-      label: 'Son 8 Çeyrek', 
-      periods: ['2023-Q1', '2023-Q2', '2023-Q3', '2023-Q4', '2024-Q1', '2024-Q2', '2024-Q3', '2024-Q4'],
-      description: '2023-2024 (2 yıl)'
-    }
-  ]
+
 
   // Tab definitions
   const tabs = [
@@ -84,6 +63,12 @@ export default function AnalyticsOverview() {
       description: 'KPI detayları ve sektörel analiz' 
     },
     { 
+      id: 'themes', 
+      label: 'Tema Takibi', 
+      icon: ChevronRight, 
+      description: 'LEAN/DIGITAL/GREEN/RESILIENCE tema analizi' 
+    },
+    { 
       id: 'comparison', 
       label: 'Karşılaştırma', 
       icon: Scale, 
@@ -97,17 +82,28 @@ export default function AnalyticsOverview() {
     }
   ]
 
-  const handleQuickSelection = (periods: string[]) => {
-    setSelectedPeriods([...periods])
-  }
+  // Başlangıç ve bitiş periyotlarından seçili periyotları hesapla
+  const selectedPeriods = useMemo(() => {
+    const startIndex = allPeriods.findIndex(p => p.value === startPeriod)
+    const endIndex = allPeriods.findIndex(p => p.value === endPeriod)
+    
+    if (startIndex === -1 || endIndex === -1) {
+      return [startPeriod]
+    }
+    
+    const periods = []
+    // startIndex'den endIndex'e kadar git (daha büyük index daha eski dönem)
+    const minIndex = Math.min(startIndex, endIndex)
+    const maxIndex = Math.max(startIndex, endIndex)
+    
+    for (let i = minIndex; i <= maxIndex; i++) {
+      periods.push(allPeriods[i].value)
+    }
+    
+    return periods
+  }, [startPeriod, endPeriod])
 
-  const togglePeriod = (period: string) => {
-    setSelectedPeriods(prev => 
-      prev.includes(period) 
-        ? prev.filter(p => p !== period)
-        : [...prev, period].sort((a, b) => a.localeCompare(b))
-    )
-  }
+
   
   const apiParams = useMemo(() => user ? getUserApiParams(user) : '', [user])
 
@@ -134,7 +130,10 @@ export default function AnalyticsOverview() {
   }, [user])
 
   useEffect(() => {
-    if (!user || selectedPeriods.length === 0) return
+    if (!user) return
+    
+    // selectedPeriods boş ise varsayılan değer kullan
+    const periodsToUse = selectedPeriods.length === 0 ? ['2024-Q4'] : selectedPeriods
     
     const fetchData = async () => {
       setLoading(true)
@@ -144,7 +143,7 @@ export default function AnalyticsOverview() {
         baseParams.set('userRole', user.userRole)
         
         // Çoklu dönem desteği
-        selectedPeriods.forEach(period => {
+        periodsToUse.forEach(period => {
           baseParams.append('periods', period)
         })
         
@@ -161,6 +160,13 @@ export default function AnalyticsOverview() {
         const overviewRes = await fetch(`/api/analytics/overview?${baseParams.toString()}`)
         const overviewData = await overviewRes.json()
         setData(overviewData)
+
+        // Tema analizi için ayrı API çağrısı
+        const themeRes = await fetch(`/api/themes/analytics?${baseParams.toString()}`)
+        if (themeRes.ok) {
+          const themeAnalytics = await themeRes.json()
+          setThemeData(themeAnalytics)
+        }
 
         // Model fabrika kullanıcısı ise özel performans verisi (en son dönem için)
         if (user.userRole === 'MODEL_FACTORY' && user.factoryId) {
@@ -220,175 +226,69 @@ export default function AnalyticsOverview() {
     return <div className="p-6 text-gray-600">Analitik veriler yükleniyor...</div>
   }
 
-  // Filter component
-  const FilterPanel = () => (
-    <Card className="mb-6">
-      <CardHeader className="pb-4">
-        <CardTitle className="flex items-center justify-between">
-          <span className="flex items-center space-x-2">
-            <Filter className="h-5 w-5" />
-            <span>Analytics Filtreleri</span>
-          </span>
-          <div className="flex items-center space-x-4">
-            <span className="text-sm text-gray-500">
-              {data?.analysisScope === 'single_factory' ? 'Tekil Fabrika Analizi' : 'Çoklu Fabrika Analizi'}
-            </span>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="lg:hidden p-1 rounded hover:bg-gray-100"
-            >
-              {showFilters ? <X className="h-4 w-4" /> : <Filter className="h-4 w-4" />}
-            </button>
-          </div>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className={`${showFilters ? 'block' : 'hidden lg:block'}`}>
-        {/* Hızlı Dönem Seçimi */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-3">Hızlı Seçim</label>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {quickSelections.map((quick) => (
-              <button
-                key={quick.label}
-                onClick={() => handleQuickSelection(quick.periods)}
-                className={`p-3 text-left border rounded-lg transition-colors ${
-                  JSON.stringify(selectedPeriods.sort()) === JSON.stringify(quick.periods.sort())
-                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                    : 'border-gray-300 hover:border-gray-400'
-                }`}
-              >
-                <div className="font-medium text-sm">{quick.label}</div>
-                <div className="text-xs text-gray-500 mt-1">{quick.description}</div>
-              </button>
-            ))}
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Dönem Detay Seçimi */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Dönem Seçimi ({selectedPeriods.length} seçili)
-            </label>
-            <div className="border border-gray-300 rounded-md p-3 max-h-48 overflow-y-auto">
-              {allPeriods.map(period => (
-                <label key={period.value} className="flex items-center space-x-2 py-1">
-                  <input
-                    type="checkbox"
-                    checked={selectedPeriods.includes(period.value)}
-                    onChange={() => togglePeriod(period.value)}
-                    className="rounded border-gray-300"
-                  />
-                  <span className="text-sm">{period.label}</span>
-                </label>
-              ))}
-            </div>
-            <div className="mt-2 flex space-x-2">
-              <button
-                onClick={() => setSelectedPeriods(allPeriods.map(p => p.value))}
-                className="text-xs px-2 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
-              >
-                Tümünü Seç
-              </button>
-              <button
-                onClick={() => setSelectedPeriods([])}
-                className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
-              >
-                Tümünü Kaldır
-              </button>
-            </div>
-          </div>
 
-          {/* Fabrika Seçimi (Sadece Üst Yönetim) */}
-          <div>
+  return (
+    <div className="max-w-7xl mx-auto p-6 space-y-6">
+      {/* Sticky Header with Filters and Tabs */}
+      <div className="sticky top-0 z-10 bg-white shadow-sm border-b border-gray-200 -mx-6 px-6 py-4">
+        {/* Header and Quick Filters */}
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h1>
+          
+          {/* Compact Filters */}
+          <div className="flex items-center space-x-3">
+            {/* Period Range Selection */}
+            <div className="flex items-center space-x-2">
+              <label className="text-sm text-gray-600">Başlangıç:</label>
+              <select 
+                className="px-3 py-1 text-sm border border-gray-300 rounded-md bg-white min-w-[100px]"
+                value={startPeriod}
+                onChange={(e) => setStartPeriod(e.target.value)}
+              >
+                {allPeriods.map(period => (
+                  <option key={period.value} value={period.value}>{period.label}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <label className="text-sm text-gray-600">Bitiş:</label>
+              <select 
+                className="px-3 py-1 text-sm border border-gray-300 rounded-md bg-white min-w-[100px]"
+                value={endPeriod}
+                onChange={(e) => setEndPeriod(e.target.value)}
+              >
+                {allPeriods.map(period => (
+                  <option key={period.value} value={period.value}>{period.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Factory Filter for Upper Management */}
             {user.userRole === 'UPPER_MANAGEMENT' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">Fabrika Filtresi</label>
+              <div className="flex items-center space-x-2">
+                <label className="text-sm text-gray-600">Fabrika:</label>
                 <select 
                   value={selectedFactory}
                   onChange={(e) => setSelectedFactory(e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded-md"
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-md bg-white min-w-[120px]"
                 >
-                  <option value="">Tüm Fabrikalar ({availableFactories.length})</option>
+                  <option value="">Tüm Fabrikalar</option>
                   {availableFactories.map(factory => (
                     <option key={factory.id} value={factory.id}>{factory.name}</option>
                   ))}
                 </select>
               </div>
             )}
-            
-            {/* Seçili Dönemlerin Özeti */}
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Seçili Dönemler</label>
-              <div className="p-3 bg-gray-50 rounded-md text-sm">
-                {selectedPeriods.length === 0 ? (
-                  <span className="text-gray-500">Hiç dönem seçilmedi</span>
-                ) : (
-                  <div>
-                    <div className="font-medium mb-1">
-                      {selectedPeriods.length} dönem seçili:
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {selectedPeriods.slice(0, 6).map(period => (
-                        <span key={period} className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
-                          {period}
-                        </span>
-                      ))}
-                      {selectedPeriods.length > 6 && (
-                        <span className="px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs">
-                          +{selectedPeriods.length - 6} daha
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* İstatistikler */}
-        {data && (
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
-              <div>
-                <span className="font-medium">Analiz Kapsamı:</span>
-                <div>{data.accessibleFactories} fabrika</div>
-              </div>
-              <div>
-                <span className="font-medium">Dönem Aralığı:</span>
-                <div>{selectedPeriods.length} çeyrek</div>
-              </div>
-              <div>
-                <span className="font-medium">KPI Sayısı:</span>
-                <div>{data.overall.kpiCount}</div>
-              </div>
-              <div>
-                <span className="font-medium">Kullanıcı Tipi:</span>
-                <div>{user.userRole === 'MODEL_FACTORY' ? 'Model Fabrika' : 'Üst Yönetim'}</div>
-              </div>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  )
 
-  return (
-    <div className="max-w-7xl mx-auto p-6 space-y-6">
-      {/* Sticky Tab Navigation */}
-      <div className="sticky top-0 z-10 bg-white shadow-sm border-b border-gray-200 -mx-6 px-6 py-4">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h1>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="lg:hidden flex items-center space-x-2 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
-          >
-            <Filter className="h-4 w-4" />
-            <span>Filtreler</span>
-          </button>
+
+          </div>
         </div>
+
+
         
+        {/* Tab Navigation */}
         <div className="flex space-x-1 overflow-x-auto">
           {tabs.map((tab) => {
             const Icon = tab.icon
@@ -409,14 +309,18 @@ export default function AnalyticsOverview() {
           })}
         </div>
         
-        {/* Tab description */}
-        <div className="mt-2 text-sm text-gray-500">
-          {tabs.find(tab => tab.id === activeTab)?.description}
-        </div>
+        {/* Quick Stats */}
+        {data && (
+          <div className="mt-3 flex items-center space-x-6 text-xs text-gray-500">
+            <span><strong>{data.accessibleFactories}</strong> fabrika</span>
+            <span><strong>{startPeriod}</strong> - <strong>{endPeriod}</strong> ({selectedPeriods.length} dönem)</span>
+            <span><strong>{data.overall.kpiCount}</strong> KPI</span>
+            <span className="hidden md:inline">
+              {user.userRole === 'MODEL_FACTORY' ? 'Model Fabrika' : 'Üst Yönetim'} görünümü
+            </span>
+          </div>
+        )}
       </div>
-
-      {/* Filter Panel */}
-      <FilterPanel />
 
       {/* Tab Content */}
       <div className="tab-content">
@@ -575,6 +479,204 @@ export default function AnalyticsOverview() {
               <CardContent>
                 <div className="text-gray-500 text-center py-8">
                   Performans detayları yakında eklenecek...
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* TEMA TAKİBİ TAB */}
+        {activeTab === 'themes' && (
+          <div className="space-y-6">
+            {/* Tema Overview Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              {['LEAN', 'DIGITAL', 'GREEN', 'RESILIENCE'].map(theme => {
+                const themeInfo = data?.themes?.find((t: any) => t.name === theme) || { avg: 0, count: 0 }
+                return (
+                  <Card key={theme}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm">{theme}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-3xl font-bold mb-2">{themeInfo.avg || 0}%</div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full ${
+                            theme === 'LEAN' ? 'bg-blue-500' :
+                            theme === 'DIGITAL' ? 'bg-purple-500' :
+                            theme === 'GREEN' ? 'bg-green-500' : 'bg-orange-500'
+                          }`}
+                          style={{ width: `${themeInfo.avg || 0}%` }}
+                        ></div>
+                      </div>
+                      <CardDescription className="mt-1">{themeInfo.count || 0} KPI</CardDescription>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+
+            {/* Tema Detay Analizi */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Tema Performans Trends */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Tema Performans Trendleri</CardTitle>
+                  <CardDescription>Dönemsel tema başarı oranları</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {themeData ? (
+                    <div className="space-y-4">
+                      {themeData.trends?.map((trend: any) => (
+                        <div key={trend.theme} className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium">{trend.theme}</span>
+                            <span className={`text-sm ${trend.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {trend.change >= 0 ? '+' : ''}{trend.change}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-blue-500 h-2 rounded-full transition-all duration-300" 
+                              style={{ width: `${trend.currentScore}%` }}
+                            ></div>
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Önceki: {trend.previousScore}% → Mevcut: {trend.currentScore}%
+                          </div>
+                        </div>
+                      )) || <div className="text-gray-500">Trend verisi yükleniyor...</div>}
+                    </div>
+                  ) : (
+                    <div className="animate-pulse space-y-4">
+                      <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                      <div className="h-2 bg-gray-200 rounded"></div>
+                      <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Fabrika Tema Karşılaştırması */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Fabrika Tema Dağılımı</CardTitle>
+                  <CardDescription>Fabrikalar arası tema performansı</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {themeData?.factoryComparison ? (
+                    <div className="space-y-3">
+                      {themeData.factoryComparison.slice(0, 5).map((factory: any, index: number) => (
+                        <div key={factory.factoryId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center space-x-3">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold ${
+                              index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : 'bg-blue-500'
+                            }`}>
+                              {index + 1}
+                            </div>
+                            <div>
+                              <div className="font-medium text-sm">{factory.factoryName}</div>
+                              <div className="text-xs text-gray-500">En güçlü: {factory.strongestTheme}</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-bold">{factory.overallThemeScore}%</div>
+                            <div className="text-xs text-gray-500">{factory.completedThemes}/4 tema</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center text-gray-500 py-8">
+                      Fabrika karşılaştırma verisi yükleniyor...
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Tema Hedef vs Gerçekleşen */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Tema Hedefleri vs Gerçekleşen</CardTitle>
+                <CardDescription>Tema bazında hedef tutturmada başarı durumu</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {themeData?.targets?.map((target: any) => (
+                    <div key={target.theme} className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <h4 className="font-medium">{target.theme}</h4>
+                        <span className={`text-sm ${target.achievement >= 100 ? 'text-green-600' : target.achievement >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          {target.achievement}% başarı
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Hedef: {target.targetValue}</span>
+                          <span>Gerçekleşen: {target.actualValue}</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div 
+                            className={`h-3 rounded-full ${
+                              target.achievement >= 100 ? 'bg-green-500' : 
+                              target.achievement >= 80 ? 'bg-yellow-500' : 'bg-red-500'
+                            }`}
+                            style={{ width: `${Math.min(100, target.achievement)}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                      
+                      {target.riskFactors?.length > 0 && (
+                        <div className="text-xs text-red-600">
+                          Risk: {target.riskFactors.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  )) || (
+                    <div className="col-span-2 text-center text-gray-500 py-8">
+                      Hedef verisi yükleniyor...
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Tema Aksiyon Önerileri */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Tema Geliştirme Önerileri</CardTitle>
+                <CardDescription>AI destekli tema optimizasyon önerileri</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {themeData?.recommendations?.map((rec: any, index: number) => (
+                    <div key={index} className={`p-4 border-l-4 rounded-lg ${
+                      rec.priority === 'high' ? 'border-red-500 bg-red-50' :
+                      rec.priority === 'medium' ? 'border-yellow-500 bg-yellow-50' :
+                      'border-blue-500 bg-blue-50'
+                    }`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium text-sm">{rec.theme}</span>
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          rec.priority === 'high' ? 'bg-red-100 text-red-600' :
+                          rec.priority === 'medium' ? 'bg-yellow-100 text-yellow-600' :
+                          'bg-blue-100 text-blue-600'
+                        }`}>
+                          {rec.priority}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-700 mb-2">{rec.recommendation}</div>
+                      <div className="text-xs text-gray-500">
+                        Beklenen etki: +{rec.expectedImprovement}%
+                      </div>
+                    </div>
+                  )) || (
+                    <div className="col-span-2 text-center text-gray-500 py-8">
+                      AI önerileri hazırlanıyor...
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

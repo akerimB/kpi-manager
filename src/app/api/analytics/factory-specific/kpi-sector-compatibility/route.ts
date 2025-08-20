@@ -1,11 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
-
-// Development için cache hack
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined }
-const prisma = globalForPrisma.prisma ?? new PrismaClient()
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
-
+import { prisma } from '@/lib/prisma'
 import { analyzeSectorKPICompatibility, getSectorKPIRecommendations } from '../../../../../lib/sector-kpi-compatibility'
 
 // NACE kodunu sektöre çevir (aynı mantık sector-impact API'sinden)

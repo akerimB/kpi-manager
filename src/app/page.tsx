@@ -285,10 +285,27 @@ export default function Home() {
           <div className="mb-8">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h2>
-                <p className="text-gray-600">Model Fabrika stratejik performans izleme</p>
+                <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                  {userContext.userRole === 'UPPER_MANAGEMENT' ? 'Üst Yönetim Dashboard' : 'Dashboard'}
+                </h2>
+                <p className="text-gray-600">
+                  {userContext.userRole === 'UPPER_MANAGEMENT' 
+                    ? 'Stratejik performans yönetimi ve analiz merkezi'
+                    : userContext.factoryName 
+                      ? `${userContext.factoryName} - Model Fabrika performans takibi`
+                      : 'Model Fabrika stratejik performans izleme'
+                  }
+                </p>
               </div>
               <div className="flex space-x-4">
+                {userContext.userRole === 'UPPER_MANAGEMENT' && (
+                  <select className="px-4 py-2 border border-gray-300 rounded-md bg-white">
+                    <option>Tüm Fabrikalar</option>
+                    <option>En İyi Performans</option>
+                    <option>İyileştirme Gereken</option>
+                    <option>Kritik Durum</option>
+                  </select>
+                )}
                 <select className="px-4 py-2 border border-gray-300 rounded-md bg-white">
                   <option>Tüm Temalar</option>
                   <option>Yalın</option>
@@ -296,6 +313,12 @@ export default function Home() {
                   <option>Yeşil</option>
                   <option>Dirençlilik</option>
                 </select>
+                {userContext.userRole === 'UPPER_MANAGEMENT' && (
+                  <Button variant="outline" className="flex items-center space-x-2">
+                    <Download className="h-4 w-4" />
+                    <span>Rapor İndir</span>
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -304,7 +327,9 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <Card className="relative overflow-hidden">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Toplam KPI</CardTitle>
+                <CardTitle className="text-sm font-medium text-gray-600">
+                  {userContext.userRole === 'UPPER_MANAGEMENT' ? 'Sistem KPI' : 'Toplam KPI'}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-between">
@@ -323,7 +348,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="mt-3 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full w-fit">
-                  4 tema kapsamında
+                  {userContext.userRole === 'UPPER_MANAGEMENT' ? `${stats?.factoryCount || 0} fabrika geneli` : '4 tema kapsamında'}
                 </div>
               </CardContent>
             </Card>
@@ -407,6 +432,95 @@ export default function Home() {
             </Card>
           </div>
 
+          {/* Üst Yönetim için Özel Özetler */}
+          {userContext.userRole === 'UPPER_MANAGEMENT' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+              <Card className="border-l-4 border-blue-500">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center space-x-2">
+                    <Users className="h-5 w-5 text-blue-600" />
+                    <span>En İyi Performans</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">1. Kayseri MF</span>
+                      <span className="text-sm font-medium text-green-600">87%</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">2. İstanbul MF</span>
+                      <span className="text-sm font-medium text-green-600">84%</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">3. Ankara MF</span>
+                      <span className="text-sm font-medium text-green-600">81%</span>
+                    </div>
+                  </div>
+                  <Link href="/analytics" className="text-xs text-blue-600 hover:text-blue-800 mt-3 block">
+                    Detayları görüntüle →
+                  </Link>
+                </CardContent>
+              </Card>
+
+              <Card className="border-l-4 border-yellow-500">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center space-x-2">
+                    <TrendingDown className="h-5 w-5 text-yellow-600" />
+                    <span>Dikkat Gereken</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Bursa MF</span>
+                      <span className="text-sm font-medium text-yellow-600">58%</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Antalya MF</span>
+                      <span className="text-sm font-medium text-yellow-600">62%</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">İzmir MF</span>
+                      <span className="text-sm font-medium text-yellow-600">65%</span>
+                    </div>
+                  </div>
+                  <Link href="/actions" className="text-xs text-yellow-600 hover:text-yellow-800 mt-3 block">
+                    Eylem planlarını görüntüle →
+                  </Link>
+                </CardContent>
+              </Card>
+
+              <Card className="border-l-4 border-green-500">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center space-x-2">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                    <span>Bu Ay Tamamlanan</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">KPI Girişleri</span>
+                      <span className="text-sm font-medium text-green-600">127/134</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Eylem Güncellemeleri</span>
+                      <span className="text-sm font-medium text-green-600">89/95</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Kanıt Yüklemeleri</span>
+                      <span className="text-sm font-medium text-green-600">234/250</span>
+                    </div>
+                  </div>
+                  <Link href="/strategy" className="text-xs text-green-600 hover:text-green-800 mt-3 block">
+                    Strateji izlemeye git →
+                  </Link>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
           {/* Tab Navigation */}
           <div className="mb-6">
             <div className="flex space-x-8">
@@ -414,10 +528,10 @@ export default function Home() {
                 Performans
               </button>
               <Link href="/analytics" className="text-gray-500 pb-2 hover:text-gray-700">
-                Trend Analizi
+                {userContext.userRole === 'UPPER_MANAGEMENT' ? 'Genel Analitik' : 'Trend Analizi'}
               </Link>
               <Link href="/analytics" className="text-gray-500 pb-2 hover:text-gray-700">
-                Departman
+                {userContext.userRole === 'UPPER_MANAGEMENT' ? 'Fabrika Karşılaştırma' : 'Departman'}
               </Link>
               <Link href="/analytics" className="text-gray-500 pb-2 hover:text-gray-700">
                 Raporlar
@@ -500,42 +614,147 @@ export default function Home() {
           </div>
 
           {/* Recent Activities */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <CheckCircle className="h-5 w-5" />
-                <span>Son Aktiviteler</span>
-              </CardTitle>
-              <CardDescription>Güncel KPI girişleri ve eylem güncellemeleri</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {activities.map((activity, index) => (
-                  <div key={index} className="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded-lg">
-                    <div className={`w-2 h-2 rounded-full mt-2 ${
-                      activity.type === 'kpi_entry' ? 'bg-blue-500' : 'bg-green-500'
-                    }`}></div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="text-sm font-medium">{activity.description}</p>
-                          <p className="text-xs text-gray-600">{activity.timestamp}</p>
-                          <p className="text-xs text-gray-500 mt-1">{activity.user}</p>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-xs text-gray-500">{activity.timestamp}</span>
-                          {/* The original code had activity.progress, activity.value, and activity.target,
-                             but they are not defined in the Activity interface.
-                             Assuming they were meant to be part of the Activity object or are placeholders.
-                             For now, removing them as they are not in the interface. */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="h-5 w-5" />
+                    <span>Son Aktiviteler</span>
+                  </div>
+                  <Button variant="outline" size="sm" className="text-xs">
+                    Tümünü Gör
+                  </Button>
+                </CardTitle>
+                <CardDescription>
+                  {userContext.userRole === 'UPPER_MANAGEMENT' 
+                    ? 'Sistem geneli son aktiviteler' 
+                    : 'Güncel KPI girişleri ve eylem güncellemeleri'
+                  }
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {activities.map((activity, index) => (
+                    <div key={index} className="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded-lg">
+                      <div className={`w-2 h-2 rounded-full mt-2 ${
+                        activity.type === 'kpi_entry' ? 'bg-blue-500' : 'bg-green-500'
+                      }`}></div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="text-sm font-medium">{activity.description}</p>
+                            <p className="text-xs text-gray-600">{activity.timestamp}</p>
+                            <p className="text-xs text-gray-500 mt-1">{activity.user}</p>
+                          </div>
+                          <div className="text-right">
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              activity.type === 'kpi_entry' 
+                                ? 'bg-blue-100 text-blue-600' 
+                                : 'bg-green-100 text-green-600'
+                            }`}>
+                              {activity.type === 'kpi_entry' ? 'KPI' : 'Eylem'}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Üst Yönetim için Ek Panel */}
+            {userContext.userRole === 'UPPER_MANAGEMENT' ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Bell className="h-5 w-5 text-orange-600" />
+                    <span>Kritik Uyarılar</span>
+                  </CardTitle>
+                  <CardDescription>Dikkat gerektiren konular</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="p-3 border-l-4 border-red-500 bg-red-50 rounded-r-lg">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-red-900">Bursa MF - KPI Girişi Gecikti</p>
+                          <p className="text-xs text-red-700 mt-1">Son giriş: 5 gün önce</p>
+                        </div>
+                        <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded">Kritik</span>
+                      </div>
+                    </div>
+                    
+                    <div className="p-3 border-l-4 border-yellow-500 bg-yellow-50 rounded-r-lg">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-yellow-900">İzmir MF - Eylem Gecikti</p>
+                          <p className="text-xs text-yellow-700 mt-1">Hedef tarih: 2 gün önce</p>
+                        </div>
+                        <span className="text-xs bg-yellow-100 text-yellow-600 px-2 py-1 rounded">Uyarı</span>
+                      </div>
+                    </div>
+
+                    <div className="p-3 border-l-4 border-blue-500 bg-blue-50 rounded-r-lg">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-blue-900">Ankara MF - Hedef Aşıldı</p>
+                          <p className="text-xs text-blue-700 mt-1">KPI-15: %127 başarı</p>
+                        </div>
+                        <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">Başarı</span>
+                      </div>
+                    </div>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <Button variant="outline" className="w-full text-sm">
+                      <Settings className="h-4 w-4 mr-2" />
+                      Uyarı Ayarları
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <TrendingUp className="h-5 w-5" />
+                    <span>Hızlı Eylemler</span>
+                  </CardTitle>
+                  <CardDescription>Sık kullanılan işlemler</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Link href="/kpi-entry">
+                      <Button variant="outline" className="w-full text-sm h-auto p-3 flex-col">
+                        <Target className="h-6 w-6 mb-2" />
+                        <span>KPI Girişi</span>
+                      </Button>
+                    </Link>
+                    <Link href="/evidence-management">
+                      <Button variant="outline" className="w-full text-sm h-auto p-3 flex-col">
+                        <Download className="h-6 w-6 mb-2" />
+                        <span>Kanıt Yükle</span>
+                      </Button>
+                    </Link>
+                    <Link href="/analytics">
+                      <Button variant="outline" className="w-full text-sm h-auto p-3 flex-col">
+                        <BarChart3 className="h-6 w-6 mb-2" />
+                        <span>Analitik</span>
+                      </Button>
+                    </Link>
+                    <Link href="/simulation">
+                      <Button variant="outline" className="w-full text-sm h-auto p-3 flex-col">
+                        <RefreshCw className="h-6 w-6 mb-2" />
+                        <span>Simülasyon</span>
+                      </Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
     </div>
   )
 }

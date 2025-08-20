@@ -4,7 +4,12 @@ import { prisma } from '@/lib/prisma'
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
-    const period = searchParams.get('period') || '2024-Q4'
+    
+    // Çoklu periyot desteği
+    const periodsParam = searchParams.getAll('periods')
+    const periods = periodsParam.length > 0 ? periodsParam : [searchParams.get('period') || '2024-Q4']
+    const currentPeriod = periods[periods.length - 1] // En son dönem
+    
     const userRole = searchParams.get('userRole') || 'UPPER_MANAGEMENT'
 
     // Sadece üst yönetim erişebilir
@@ -12,9 +17,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 })
     }
 
-    const previousPeriod = period === '2024-Q4' ? '2024-Q3' :
-                          period === '2024-Q3' ? '2024-Q2' :
-                          period === '2024-Q2' ? '2024-Q1' : '2023-Q4'
+    // Önceki dönem hesapla (trend için)
+    const previousPeriod = currentPeriod === '2024-Q4' ? '2024-Q3' :
+                          currentPeriod === '2024-Q3' ? '2024-Q2' :
+                          currentPeriod === '2024-Q2' ? '2024-Q1' : '2023-Q4'
+    
+    console.log('👔 Executive Summary API called with periods:', periods)
 
     // Tüm fabrikalar ve KPI değerleri
     const [factories, kpiValues, previousKpiValues, strategicGoals] = await Promise.all([
@@ -22,7 +30,7 @@ export async function GET(request: NextRequest) {
         select: { id: true, name: true, province: true }
       }),
       prisma.kpiValue.findMany({
-        where: { period },
+        where: { period: { in: periods } },
         include: {
           kpi: {
             include: {
@@ -60,6 +68,17 @@ export async function GET(request: NextRequest) {
       })
     ])
 
+    // Veri kontrolü
+    if (!factories || factories.length === 0) {
+      return NextResponse.json({
+        overallHealth: { score: 0, status: 'critical', trend: 0 },
+        keyFindings: [],
+        strategicAlignment: {},
+        riskAreas: [],
+        topPerformers: []
+      })
+    }
+
     // Genel sağlık durumu hesapla
     let totalScore = 0
     let valueCount = 0
@@ -76,32 +95,62 @@ export async function GET(request: NextRequest) {
 
     // Initialize SA scores
     strategicGoals.forEach(sa => {
-      saScores[sa.code] = { current: 0, previous: 0, count: 0, name: sa.title }
+      if (sa.code) {
+        saScores[sa.code] = { current: 0, previous: 0, count: 0, name: sa.title || 'Bilinmeyen SA' }
+      }
     })
 
-    // Current period calculation
+    // Current period calculation (çoklu periyot ortalaması)
+    const kpiAverages: Record<string, { totalScore: number; count: number; periods: string[] }> = {}
+    
     kpiValues.forEach(kv => {
+      if (!kv.kpi || !kv.kpi.strategicTarget || !kv.kpi.strategicTarget.strategicGoal) {
+        return // Skip invalid entries
+      }
+      
+      const kpiKey = kv.kpi.id
+      if (!kpiAverages[kpiKey]) {
+        kpiAverages[kpiKey] = { totalScore: 0, count: 0, periods: [] }
+      }
+      
       const target = kv.kpi.targetValue || 100
       const score = Math.min(100, (kv.value / target) * 100)
-      totalScore += score
+      
+      kpiAverages[kpiKey].totalScore += score
+      kpiAverages[kpiKey].count++
+      kpiAverages[kpiKey].periods.push(kv.period)
+    })
+    
+    // KPI ortalamalarını hesapla
+    Object.values(kpiAverages).forEach(avg => {
+      const averageScore = avg.totalScore / avg.count
+      
+      totalScore += averageScore
       valueCount++
-
-      // Factory level
-      if (factoryScores[kv.factoryId]) {
-        factoryScores[kv.factoryId].score += score
-        factoryScores[kv.factoryId].count++
+      
+      // Factory breakdown (ilk KPI değerini kullan)
+      const firstKv = kpiValues.find(kv => kv.kpi.id === Object.keys(kpiAverages).find(key => kpiAverages[key] === avg))
+      if (firstKv && firstKv.factoryId && factoryScores[firstKv.factoryId]) {
+        factoryScores[firstKv.factoryId].score += averageScore
+        factoryScores[firstKv.factoryId].count++
       }
-
-      // SA level
-      const saCode = kv.kpi.strategicTarget.strategicGoal.code
-      if (saScores[saCode]) {
-        saScores[saCode].current += score
-        saScores[saCode].count++
+      
+      // SA breakdown (ilk KPI değerini kullan)
+      if (firstKv && firstKv.kpi.strategicTarget?.strategicGoal?.code) {
+        const saCode = firstKv.kpi.strategicTarget.strategicGoal.code
+        if (saScores[saCode]) {
+          saScores[saCode].current += averageScore
+          saScores[saCode].count++
+        }
       }
     })
 
     // Previous period calculation
     previousKpiValues.forEach(kv => {
+      if (!kv.kpi || !kv.kpi.strategicTarget || !kv.kpi.strategicTarget.strategicGoal) {
+        return // Skip invalid entries
+      }
+      
       const target = kv.kpi.targetValue || 100
       const score = Math.min(100, (kv.value / target) * 100)
       totalPrevScore += score
@@ -109,7 +158,7 @@ export async function GET(request: NextRequest) {
 
       // SA level previous
       const saCode = kv.kpi.strategicTarget.strategicGoal.code
-      if (saScores[saCode]) {
+      if (saCode && saScores[saCode]) {
         saScores[saCode].previous += score
       }
     })

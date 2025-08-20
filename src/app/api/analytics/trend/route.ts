@@ -12,7 +12,12 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const factoryId = searchParams.get('factoryId') || searchParams.get('factory') || undefined
-    const periods = getPeriods()
+    
+    // Çoklu periyot desteği
+    const periodsParam = searchParams.getAll('periods')
+    const periods = periodsParam.length > 0 ? periodsParam : getPeriods()
+    
+    console.log('📈 Trend API called with periods:', periods)
 
     // SA-SH-KPI yapısını ve ilgili KPI değerlerini çek
     const strategicGoals = await prisma.strategicGoal.findMany({

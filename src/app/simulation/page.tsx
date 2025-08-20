@@ -70,6 +70,35 @@ export default function SimulationPage() {
     }
   }, [isClient, userContext])
 
+  useEffect(() => {
+    if (!userContext) return
+
+    const fetchData = async () => {
+      try {
+        const apiParams = getUserApiParams(userContext)
+        
+        const [actionsRes, simulationsRes] = await Promise.all([
+          fetch(`/api/actions?${apiParams}`),
+          fetch(`/api/simulation?${apiParams}`)
+        ])
+
+        const [actionsData, simulationsData] = await Promise.all([
+          actionsRes.json(),
+          simulationsRes.json()
+        ])
+
+        setActions(actionsData.slice(0, 20)) // İlk 20 eylem
+        setSimulations(simulationsData)
+      } catch (error) {
+        console.error('Error fetching data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [userContext])
+
   // Loading durumları
   if (!isClient) {
     return (
@@ -107,35 +136,6 @@ export default function SimulationPage() {
       </div>
     )
   }
-
-  useEffect(() => {
-    if (!userContext) return
-
-    const fetchData = async () => {
-      try {
-        const apiParams = getUserApiParams(userContext)
-        
-        const [actionsRes, simulationsRes] = await Promise.all([
-          fetch(`/api/actions?${apiParams}`),
-          fetch(`/api/simulation?${apiParams}`)
-        ])
-
-        const [actionsData, simulationsData] = await Promise.all([
-          actionsRes.json(),
-          simulationsRes.json()
-        ])
-
-        setActions(actionsData.slice(0, 20)) // İlk 20 eylem
-        setSimulations(simulationsData)
-      } catch (error) {
-        console.error('Error fetching data:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [userContext])
 
   const addActionToSimulation = (action: Action) => {
     if (selectedActions.find(item => item.actionId === action.id)) return

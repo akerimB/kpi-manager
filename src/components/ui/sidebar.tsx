@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BarChart3, Target, Calendar, TrendingUp, Settings as SettingsIcon, PieChart, Zap, FileText, ChevronDown, ChevronRight } from 'lucide-react'
+import { BarChart3, Target, Calendar, TrendingUp, Settings as SettingsIcon, PieChart, Zap, FileText } from 'lucide-react'
 import { getCurrentUser, startSessionMonitoring } from '@/lib/user-context'
 import { useEffect, useState } from 'react'
 
@@ -10,14 +10,7 @@ export default function Sidebar() {
   const pathname = usePathname()
   const [userContext, setUserContext] = useState<any>(null)
   const [isClient, setIsClient] = useState(false)
-  const [analyticsExpanded, setAnalyticsExpanded] = useState(false)
 
-  // Analytics alt menüsünü açık tut
-  useEffect(() => {
-    if (pathname === '/analytics' || pathname === '/themes') {
-      setAnalyticsExpanded(true)
-    }
-  }, [pathname])
 
   useEffect(() => {
     setIsClient(true)
@@ -59,18 +52,7 @@ export default function Sidebar() {
 
   const items = [
     { name: 'Dashboard', href: '/', icon: BarChart3, visible: true },
-    { 
-      name: 'Analitik', 
-      icon: TrendingUp, 
-      visible: true,
-      hasSubMenu: true,
-      expanded: analyticsExpanded,
-      onClick: () => setAnalyticsExpanded(!analyticsExpanded),
-      subItems: [
-        { name: 'Genel Analitik', href: '/analytics', icon: TrendingUp, visible: true },
-        { name: 'Tema Takibi', href: '/themes', icon: PieChart, visible: true },
-      ]
-    },
+    { name: 'Analitik', href: '/analytics', icon: TrendingUp, visible: true },
     { name: 'KPI Girişi', href: '/kpi-entry', icon: Target, visible: isClient && userContext?.userRole === 'MODEL_FACTORY' },
     { name: 'Kanıt Yönetimi', href: '/evidence-management', icon: FileText, visible: isClient && userContext?.userRole === 'MODEL_FACTORY' },
     { name: 'Eylem / Faz İzleme', href: '/actions', icon: Calendar, visible: isClient && userContext?.userRole === 'UPPER_MANAGEMENT' },
@@ -84,54 +66,14 @@ export default function Sidebar() {
       <nav className="p-4 space-y-2">
         <div className="sidebar-nav">
           {items.filter(i => i.visible).map((item, index) => {
-            if (item.hasSubMenu) {
-              return (
-                <div key={`submenu-${index}`}>
-                  <button
-                    onClick={item.onClick}
-                    className={`sidebar-nav-item w-full flex items-center justify-between ${
-                      (pathname === '/analytics' || pathname === '/themes') ? 'active' : ''
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <item.icon className="h-5 w-5" />
-                      <span>{item.name}</span>
-                    </div>
-                    {item.expanded ? (
-                      <ChevronDown className="h-4 w-4" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4" />
-                    )}
-                  </button>
-                  {item.expanded && item.subItems && (
-                    <div className="ml-6 mt-1 space-y-1">
-                      {item.subItems.filter(sub => sub.visible).map((subItem) => {
-                        const isActive = pathname === subItem.href
-                        return (
-                          <Link 
-                            key={subItem.href} 
-                            href={subItem.href} 
-                            className={`sidebar-nav-item ${isActive ? 'active' : ''} text-sm`}
-                          >
-                            <subItem.icon className="h-4 w-4" />
-                            <span>{subItem.name}</span>
-                          </Link>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )
-            } else {
-              const isActive = pathname === item.href
-              const Icon = item.icon
-              return (
-                <Link key={item.href || `item-${index}`} href={item.href || '#'} className={`sidebar-nav-item ${isActive ? 'active' : ''}`}>
-                  <Icon className="h-5 w-5" />
-                  <span>{item.name}</span>
-                </Link>
-              )
-            }
+            const isActive = pathname === item.href
+            const Icon = item.icon
+            return (
+              <Link key={item.href || `item-${index}`} href={item.href || '#'} className={`sidebar-nav-item ${isActive ? 'active' : ''}`}>
+                <Icon className="h-5 w-5" />
+                <span>{item.name}</span>
+              </Link>
+            )
           })}
         </div>
       </nav>

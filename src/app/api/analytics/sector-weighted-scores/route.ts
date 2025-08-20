@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { calculateWeightedKPIScore, getTopKPIsForSector, getSectorKPIWeight } from '../../../../lib/sector-kpi-weighting'
-
-// Development için cache hack
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined }
-const prisma = globalForPrisma.prisma ?? new PrismaClient()
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 // NACE kodunu sektöre çevir
 function mapNaceToSector(nace: string | null): string {

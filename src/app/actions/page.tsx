@@ -81,63 +81,6 @@ export default function ActionManagement() {
     [userContext]
   )
 
-  useEffect(() => {
-    setIsClient(true)
-    setUserContext(getCurrentUser())
-  }, [])
-
-  // Authentication ve rol kontrolü - only after userContext is properly set
-  useEffect(() => {
-    if (isClient && userContext === null) {
-      // Only redirect if we've checked and userContext is definitely null
-      setTimeout(() => {
-        const user = getCurrentUser()
-        if (!user) {
-          window.location.href = '/login'
-        }
-      }, 100)
-      return
-    }
-  }, [isClient, userContext])
-
-  // Loading durumları
-  if (!isClient) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
-    )
-  }
-
-  if (!userContext) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-blue-600 text-6xl mb-4">🔐</div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Giriş Gerekli</h2>
-          <p className="text-gray-600 mb-4">Bu sayfayı görüntülemek için giriş yapmanız gerekiyor.</p>
-          <a href="/login" className="text-blue-600 hover:text-blue-800">Giriş Yap</a>
-        </div>
-      </div>
-    )
-  }
-
-  // Rol kontrolü - sadece üst yönetim ve admin erişebilir
-  if (userContext.userRole === 'MODEL_FACTORY') {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-600 text-6xl mb-4">🚫</div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Erişim Reddedildi</h2>
-          <p className="text-gray-600 mb-4">Bu sayfaya erişim yetkiniz bulunmamaktadır.</p>
-          <Link href="/" className="text-blue-600 hover:text-blue-800">
-            Dashboard'a Dön
-          </Link>
-        </div>
-      </div>
-    )
-  }
-
   // Memoized fetch function
   const fetchData = useCallback(async () => {
     if (!userContext || !apiParams) return
@@ -181,8 +124,65 @@ export default function ActionManagement() {
   }, [userContext, apiParams])
 
   useEffect(() => {
+    setIsClient(true)
+    setUserContext(getCurrentUser())
+  }, [])
+
+  // Authentication ve rol kontrolü - only after userContext is properly set
+  useEffect(() => {
+    if (isClient && userContext === null) {
+      // Only redirect if we've checked and userContext is definitely null
+      setTimeout(() => {
+        const user = getCurrentUser()
+        if (!user) {
+          window.location.href = '/login'
+        }
+      }, 100)
+      return
+    }
+  }, [isClient, userContext])
+
+  useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  // Loading durumları
+  if (!isClient) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  if (!userContext) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-blue-600 text-6xl mb-4">🔐</div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Giriş Gerekli</h2>
+          <p className="text-gray-600 mb-4">Bu sayfayı görüntülemek için giriş yapmanız gerekiyor.</p>
+          <a href="/login" className="text-blue-600 hover:text-blue-800">Giriş Yap</a>
+        </div>
+      </div>
+    )
+  }
+
+  // Rol kontrolü - sadece üst yönetim ve admin erişebilir
+  if (userContext.userRole === 'MODEL_FACTORY') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-600 text-6xl mb-4">🚫</div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Erişim Reddedildi</h2>
+          <p className="text-gray-600 mb-4">Bu sayfaya erişim yetkiniz bulunmamaktadır.</p>
+          <Link href="/" className="text-blue-600 hover:text-blue-800">
+            Dashboard'a Dön
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   const updateActionProgress = async (actionId: string, newProgress: number) => {
     try {
