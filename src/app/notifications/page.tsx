@@ -9,6 +9,25 @@ import { Button } from '@/components/ui/button'
 export default function NotificationsPage() {
   const [user, setUser] = useState<any>(null)
   const [isClient, setIsClient] = useState(false)
+
+  useEffect(() => {
+    setIsClient(true)
+    setUser(getCurrentUser())
+  }, [])
+
+  if (!isClient) return null
+  if (!user) return <div className="p-6">Giriş gerekli</div>
+
+  // Redirect based on user role
+  if (user.userRole === 'MODEL_FACTORY') {
+    // For Model Factory users, redirect to specialized notifications
+    if (typeof window !== 'undefined') {
+      window.location.href = '/notifications/model-factory'
+      return null
+    }
+  }
+
+  // For other users, show the general notifications
   const [onlyUnread, setOnlyUnread] = useState(false)
   const [limit, setLimit] = useState(20)
 

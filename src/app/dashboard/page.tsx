@@ -32,6 +32,22 @@ export default function DashboardPage() {
     )
   }
 
+  // Redirect based on user role
+  if (user.userRole === 'MODEL_FACTORY') {
+    // For Model Factory users, show the specialized dashboard
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto p-6">
+          <CustomizableDashboard 
+            userId={user.user?.id || 'demo-user'} 
+            userRole={user.userRole} 
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // For other users (Upper Management, Admin), show the general dashboard
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto p-6">

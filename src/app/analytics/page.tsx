@@ -21,6 +21,41 @@ import { ChevronRight, BarChart3, TrendingUp, Scale, FileDown, Factory } from 'l
 export default function AnalyticsOverview() {
   const [user, setUser] = useState<any>(null)
   const [isClient, setIsClient] = useState(false)
+
+  useEffect(() => {
+    setIsClient(true)
+    setUser(getCurrentUser())
+  }, [])
+
+  if (!isClient) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h1>
+          <p className="text-gray-600">Please log in to access analytics.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Redirect based on user role
+  if (user.userRole === 'MODEL_FACTORY') {
+    // For Model Factory users, redirect to specialized analytics
+    if (typeof window !== 'undefined') {
+      window.location.href = '/analytics/model-factory'
+      return null
+    }
+  }
+
+  // For other users (Upper Management, Admin), show the general analytics
   const [data, setData] = useState<any>(null)
   const [factoryPerformance, setFactoryPerformance] = useState<any>(null)
   const [sectorImpact, setSectorImpact] = useState<any>(null)

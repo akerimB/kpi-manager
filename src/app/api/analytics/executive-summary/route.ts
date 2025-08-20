@@ -100,78 +100,117 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Current period calculation (çoklu periyot ortalaması)
-    const kpiAverages: Record<string, { totalScore: number; count: number; periods: string[] }> = {}
+    // Gerçek matematiksel analiz - Ağırlıklı KPI hesaplama
+    const kpiCategories = {
+      'Teknoloji Transferi': { weight: 0.25, values: [] },
+      'Eğitim Katılımı': { weight: 0.20, values: [] },
+      'Sürdürülebilirlik': { weight: 0.20, values: [] },
+      'İnovasyon': { weight: 0.15, values: [] },
+      'Verimlilik': { weight: 0.10, values: [] },
+      'Kalite': { weight: 0.10, values: [] }
+    }
     
+    // KPI'ları kategorilere dağıt ve ağırlıklı hesapla
     kpiValues.forEach(kv => {
       if (!kv.kpi || !kv.kpi.strategicTarget || !kv.kpi.strategicTarget.strategicGoal) {
         return // Skip invalid entries
       }
       
-      const kpiKey = kv.kpi.id
-      if (!kpiAverages[kpiKey]) {
-        kpiAverages[kpiKey] = { totalScore: 0, count: 0, periods: [] }
+      const target = kv.kpi.targetValue || 1 // Avoid division by zero
+      const achievement = Math.min(100, Math.max(0, (kv.value / target) * 100))
+      
+      // KPI'yı kategorilere dağıt
+      const description = kv.kpi.description?.toLowerCase() || ''
+      
+      if (description.includes('teknoloji') || description.includes('transfer')) {
+        kpiCategories['Teknoloji Transferi'].values.push({ ...kv, achievement })
+      } else if (description.includes('eğitim') || description.includes('katılım')) {
+        kpiCategories['Eğitim Katılımı'].values.push({ ...kv, achievement })
+      } else if (description.includes('sürdürülebilir') || description.includes('çevre')) {
+        kpiCategories['Sürdürülebilirlik'].values.push({ ...kv, achievement })
+      } else if (description.includes('inovasyon') || description.includes('araştırma')) {
+        kpiCategories['İnovasyon'].values.push({ ...kv, achievement })
+      } else if (description.includes('verimlilik') || description.includes('üretim')) {
+        kpiCategories['Verimlilik'].values.push({ ...kv, achievement })
+      } else {
+        kpiCategories['Kalite'].values.push({ ...kv, achievement })
       }
       
-      const target = kv.kpi.targetValue || 100
-      const score = Math.min(100, (kv.value / target) * 100)
+      // Factory breakdown
+      if (kv.factoryId && factoryScores[kv.factoryId]) {
+        factoryScores[kv.factoryId].score += achievement
+        factoryScores[kv.factoryId].count++
+      }
       
-      kpiAverages[kpiKey].totalScore += score
-      kpiAverages[kpiKey].count++
-      kpiAverages[kpiKey].periods.push(kv.period)
+      // SA breakdown
+      if (kv.kpi.strategicTarget?.strategicGoal?.code) {
+        const saCode = kv.kpi.strategicTarget.strategicGoal.code
+        if (saScores[saCode]) {
+          saScores[saCode].current += achievement
+          saScores[saCode].count++
+        }
+      }
     })
     
-    // KPI ortalamalarını hesapla
-    Object.entries(kpiAverages).forEach(([kpiId, avg]) => {
-      const averageScore = avg.totalScore / avg.count
-      
-      totalScore += averageScore
-      valueCount++
-      
-      // Factory breakdown (doğru KPI eşleştirme)
-      const kpiValues_forThisKpi = kpiValues.filter(kv => kv.kpi.id === kpiId)
-      kpiValues_forThisKpi.forEach(kv => {
-        if (kv.factoryId && factoryScores[kv.factoryId]) {
-          factoryScores[kv.factoryId].score += averageScore / kpiValues_forThisKpi.length
-          factoryScores[kv.factoryId].count += 1 / kpiValues_forThisKpi.length
-        }
-        
-        // SA breakdown (doğru KPI eşleştirme)
-        if (kv.kpi.strategicTarget?.strategicGoal?.code) {
-          const saCode = kv.kpi.strategicTarget.strategicGoal.code
-          if (saScores[saCode]) {
-            saScores[saCode].current += averageScore / kpiValues_forThisKpi.length
-            saScores[saCode].count += 1 / kpiValues_forThisKpi.length
-          }
-        }
-      })
+    // Ağırlıklı genel skor hesapla
+    Object.entries(kpiCategories).forEach(([category, data]) => {
+      if (data.values.length > 0) {
+        const categoryAvg = data.values.reduce((sum, kv) => sum + kv.achievement, 0) / data.values.length
+        totalScore += categoryAvg * data.weight
+        valueCount += data.weight
+      }
     })
 
-    // Previous period calculation (normalize per KPI similar to current)
-    const prevKpiAverages: Record<string, { totalScore: number; count: number; saCode: string | null }> = {}
+    // Önceki dönem için aynı ağırlıklı hesaplama
+    const prevKpiCategories = {
+      'Teknoloji Transferi': { weight: 0.25, values: [] },
+      'Eğitim Katılımı': { weight: 0.20, values: [] },
+      'Sürdürülebilirlik': { weight: 0.20, values: [] },
+      'İnovasyon': { weight: 0.15, values: [] },
+      'Verimlilik': { weight: 0.10, values: [] },
+      'Kalite': { weight: 0.10, values: [] }
+    }
+    
     previousKpiValues.forEach(kv => {
       if (!kv.kpi || !kv.kpi.strategicTarget || !kv.kpi.strategicTarget.strategicGoal) {
         return // Skip invalid entries
       }
-      const target = kv.kpi.targetValue || 100
-      const score = Math.min(100, (kv.value / target) * 100)
-      totalPrevScore += score
-      prevValueCount++
-
-      const kpiId = kv.kpi.id
-      if (!prevKpiAverages[kpiId]) {
-        prevKpiAverages[kpiId] = { totalScore: 0, count: 0, saCode: kv.kpi.strategicTarget.strategicGoal.code || null }
+      
+      const target = kv.kpi.targetValue || 1
+      const achievement = Math.min(100, Math.max(0, (kv.value / target) * 100))
+      
+      // KPI'yı kategorilere dağıt
+      const description = kv.kpi.description?.toLowerCase() || ''
+      
+      if (description.includes('teknoloji') || description.includes('transfer')) {
+        prevKpiCategories['Teknoloji Transferi'].values.push({ ...kv, achievement })
+      } else if (description.includes('eğitim') || description.includes('katılım')) {
+        prevKpiCategories['Eğitim Katılımı'].values.push({ ...kv, achievement })
+      } else if (description.includes('sürdürülebilir') || description.includes('çevre')) {
+        prevKpiCategories['Sürdürülebilirlik'].values.push({ ...kv, achievement })
+      } else if (description.includes('inovasyon') || description.includes('araştırma')) {
+        prevKpiCategories['İnovasyon'].values.push({ ...kv, achievement })
+      } else if (description.includes('verimlilik') || description.includes('üretim')) {
+        prevKpiCategories['Verimlilik'].values.push({ ...kv, achievement })
+      } else {
+        prevKpiCategories['Kalite'].values.push({ ...kv, achievement })
       }
-      prevKpiAverages[kpiId].totalScore += score
-      prevKpiAverages[kpiId].count++
+      
+      // SA breakdown for previous period
+      if (kv.kpi.strategicTarget?.strategicGoal?.code) {
+        const saCode = kv.kpi.strategicTarget.strategicGoal.code
+        if (saScores[saCode]) {
+          saScores[saCode].previous += achievement
+        }
+      }
     })
-
-    // Distribute normalized previous KPI averages to SA buckets (one contribution per KPI)
-    Object.entries(prevKpiAverages).forEach(([kpiId, prev]) => {
-      const avgPrev = prev.count > 0 ? prev.totalScore / prev.count : 0
-      const saCode = prev.saCode
-      if (saCode && saScores[saCode]) {
-        saScores[saCode].previous += avgPrev
+    
+    // Önceki dönem ağırlıklı skor hesapla
+    Object.entries(prevKpiCategories).forEach(([category, data]) => {
+      if (data.values.length > 0) {
+        const categoryAvg = data.values.reduce((sum, kv) => sum + kv.achievement, 0) / data.values.length
+        totalPrevScore += categoryAvg * data.weight
+        prevValueCount += data.weight
       }
     })
 

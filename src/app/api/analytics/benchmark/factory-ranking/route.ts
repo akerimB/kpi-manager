@@ -48,54 +48,77 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Benchmark hesaplamaları (çoklu periyot ortalaması)
+    // Gerçek matematiksel analiz - Ağırlıklı fabrika performans hesaplama
     const benchmarkData = factoryPerformance.map(factory => {
       const values = factory.kpiValues
       
-      // KPI bazında periyot ortalamaları hesapla
-      const kpiAverages: Record<string, { totalScore: number; count: number; periods: string[] }> = {}
+      // KPI kategorileri ve ağırlıkları
+      const kpiCategories = {
+        'Teknoloji Transferi': { weight: 0.25, values: [] },
+        'Eğitim Katılımı': { weight: 0.20, values: [] },
+        'Sürdürülebilirlik': { weight: 0.20, values: [] },
+        'İnovasyon': { weight: 0.15, values: [] },
+        'Verimlilik': { weight: 0.10, values: [] },
+        'Kalite': { weight: 0.10, values: [] }
+      }
       
+      // KPI'ları kategorilere dağıt
       values.forEach(kpiValue => {
-        const kpiKey = kpiValue.kpi.id
-        if (!kpiAverages[kpiKey]) {
-          kpiAverages[kpiKey] = { totalScore: 0, count: 0, periods: [] }
+        const target = kpiValue.kpi.targetValue || 1
+        const achievement = Math.min(100, Math.max(0, (kpiValue.value / target) * 100))
+        
+        const description = kpiValue.kpi.description?.toLowerCase() || ''
+        
+        if (description.includes('teknoloji') || description.includes('transfer')) {
+          kpiCategories['Teknoloji Transferi'].values.push({ ...kpiValue, achievement })
+        } else if (description.includes('eğitim') || description.includes('katılım')) {
+          kpiCategories['Eğitim Katılımı'].values.push({ ...kpiValue, achievement })
+        } else if (description.includes('sürdürülebilir') || description.includes('çevre')) {
+          kpiCategories['Sürdürülebilirlik'].values.push({ ...kpiValue, achievement })
+        } else if (description.includes('inovasyon') || description.includes('araştırma')) {
+          kpiCategories['İnovasyon'].values.push({ ...kpiValue, achievement })
+        } else if (description.includes('verimlilik') || description.includes('üretim')) {
+          kpiCategories['Verimlilik'].values.push({ ...kpiValue, achievement })
+        } else {
+          kpiCategories['Kalite'].values.push({ ...kpiValue, achievement })
         }
-        
-        const target = kpiValue.kpi.targetValue || 100
-        const achievementRate = Math.min((kpiValue.value / target) * 100, 100)
-        
-        kpiAverages[kpiKey].totalScore += achievementRate
-        kpiAverages[kpiKey].count++
-        kpiAverages[kpiKey].periods.push(kpiValue.period)
       })
       
-      // KPI ortalamalarını hesapla
-      let totalScore = 0
+      // Ağırlıklı performans hesapla
+      let totalWeightedScore = 0
+      let totalWeight = 0
       let achievedKpis = 0
-      let totalKpis = Object.keys(kpiAverages).length
+      let totalKpis = 0
       
-      const kpiScores = Object.entries(kpiAverages).map(([kpiId, avg]) => {
-        const kpiValue = values.find(v => v.kpi.id === kpiId)
-        if (!kpiValue) return null
+      const kpiScores = Object.entries(kpiCategories).map(([category, data]) => {
+        if (data.values.length === 0) return null
         
-        const averageAchievementRate = avg.totalScore / avg.count
+        const categoryAvg = data.values.reduce((sum, kv) => sum + kv.achievement, 0) / data.values.length
+        totalWeightedScore += categoryAvg * data.weight
+        totalWeight += data.weight
+        totalKpis += data.values.length
         
-        totalScore += averageAchievementRate
-        if (averageAchievementRate >= 80) achievedKpis++
+        if (categoryAvg >= 80) achievedKpis += data.values.length
         
         return {
-          kpiNumber: kpiValue.kpi.number,
-          description: kpiValue.kpi.description,
-          current: Math.round((avg.totalScore / avg.count) * 100) / 100,
-          target: kpiValue.kpi.targetValue || 100,
-          achievementRate: Math.round(averageAchievementRate * 100) / 100,
-          unit: kpiValue.kpi.unit,
-          themes: kpiValue.kpi.themes?.split(',') || [],
-          periods: avg.periods
+          category,
+          averageScore: Math.round(categoryAvg * 100) / 100,
+          kpiCount: data.values.length,
+          weight: data.weight,
+          kpis: data.values.map(kv => ({
+            kpiNumber: kv.kpi.number,
+            description: kv.kpi.description,
+            current: Math.round(kv.achievement * 100) / 100,
+            target: kv.kpi.targetValue || 1,
+            achievementRate: Math.round(kv.achievement * 100) / 100,
+            unit: kv.kpi.unit,
+            themes: kv.kpi.themes?.split(',') || [],
+            period: kv.period
+          }))
         }
       }).filter(Boolean)
 
-      const averageScore = totalKpis > 0 ? totalScore / totalKpis : 0
+      const averageScore = totalWeight > 0 ? totalWeightedScore / totalWeight : 0
       
       // Performans seviyesi belirleme
       let performanceLevel = 'bronze'

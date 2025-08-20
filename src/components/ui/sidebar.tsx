@@ -51,17 +51,38 @@ export default function Sidebar() {
   }, [isClient])
 
   const items = [
-    { name: 'Dashboard', href: '/', icon: BarChart3, visible: true },
-    { name: 'Analitik', href: '/analytics', icon: TrendingUp, visible: true },
+    // Model Fabrika özel menüler
+    { 
+      name: 'Dashboard', 
+      href: userContext?.userRole === 'MODEL_FACTORY' ? '/dashboard/model-factory' : '/', 
+      icon: BarChart3, 
+      visible: true 
+    },
+    { 
+      name: 'Analitik', 
+      href: userContext?.userRole === 'MODEL_FACTORY' ? '/analytics/model-factory' : '/analytics', 
+      icon: TrendingUp, 
+      visible: true 
+    },
     { name: 'KPI Girişi', href: '/kpi-entry', icon: Target, visible: isClient && userContext?.userRole === 'MODEL_FACTORY' },
     { name: 'Kanıt Yönetimi', href: '/evidence-management', icon: FileText, visible: isClient && userContext?.userRole === 'MODEL_FACTORY' },
     { name: 'Eylem / Faz İzleme', href: '/actions', icon: Calendar, visible: isClient && userContext?.userRole === 'UPPER_MANAGEMENT' },
-    { name: 'Kişisel Eylemler', href: '/user-actions', icon: Calendar, visible: isClient && !!userContext },
+    { 
+      name: 'Kişisel Eylemler', 
+      href: userContext?.userRole === 'MODEL_FACTORY' ? '/user-actions/model-factory' : '/user-actions', 
+      icon: Calendar, 
+      visible: isClient && !!userContext 
+    },
     // Place Takvim and Uyarılar right above Ayarlar
     { name: 'Strateji İzleme', href: '/strategy', icon: TrendingUp, visible: isClient && userContext?.userRole === 'UPPER_MANAGEMENT' },
     { name: 'Etki Simülasyonu', href: '/simulation', icon: Zap, visible: isClient && !!userContext?.permissions?.canCreateSimulations },
     { name: 'Takvim', href: '/calendar', icon: Calendar, visible: isClient && !!userContext },
-    { name: 'Bildirimler', href: '/notifications', icon: Bell, visible: isClient && !!userContext },
+    { 
+      name: 'Bildirimler', 
+      href: userContext?.userRole === 'MODEL_FACTORY' ? '/notifications/model-factory' : '/notifications', 
+      icon: Bell, 
+      visible: isClient && !!userContext 
+    },
     // Move Settings below Takvim and Uyarılar by ordering items earlier
     { name: 'Ayarlar', href: '/settings', icon: SettingsIcon, visible: true },
   ]

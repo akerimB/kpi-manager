@@ -140,32 +140,65 @@ export class KPICalculator {
   }
 
   /**
-   * Çoklu KPI değerleri için aggregate hesaplama
+   * Gerçek matematiksel analiz - Ağırlıklı KPI hesaplama
    */
   calculateAggregateScore(kpiValues: KPIValue[]): AggregateResult {
     const contributions: ScoreResult[] = []
-    let totalWeightedScore = 0
-    let totalWeight = 0
-    let validCount = 0
-
-    // Her KPI için hesaplama
+    
+    // KPI kategorileri ve ağırlıkları
+    const kpiCategories = {
+      'Teknoloji Transferi': { weight: 0.25, values: [] },
+      'Eğitim Katılımı': { weight: 0.20, values: [] },
+      'Sürdürülebilirlik': { weight: 0.20, values: [] },
+      'İnovasyon': { weight: 0.15, values: [] },
+      'Verimlilik': { weight: 0.10, values: [] },
+      'Kalite': { weight: 0.10, values: [] }
+    }
+    
+    // Her KPI için hesaplama ve kategorilere dağıtım
     kpiValues.forEach(kpiValue => {
       const result = this.calculateSingleScore(kpiValue)
       contributions.push(result)
       
       if (result.isValid) {
-        totalWeightedScore += result.contribution
-        totalWeight += result.weight
-        validCount++
+        // KPI'yı kategorilere dağıt
+        const description = kpiValue.kpi?.description?.toLowerCase() || ''
+        
+        if (description.includes('teknoloji') || description.includes('transfer')) {
+          kpiCategories['Teknoloji Transferi'].values.push(result)
+        } else if (description.includes('eğitim') || description.includes('katılım')) {
+          kpiCategories['Eğitim Katılımı'].values.push(result)
+        } else if (description.includes('sürdürülebilir') || description.includes('çevre')) {
+          kpiCategories['Sürdürülebilirlik'].values.push(result)
+        } else if (description.includes('inovasyon') || description.includes('araştırma')) {
+          kpiCategories['İnovasyon'].values.push(result)
+        } else if (description.includes('verimlilik') || description.includes('üretim')) {
+          kpiCategories['Verimlilik'].values.push(result)
+        } else {
+          kpiCategories['Kalite'].values.push(result)
+        }
       }
     })
-
-    // Aggregate sonuçlar
+    
+    // Ağırlıklı genel skor hesapla
+    let totalWeightedScore = 0
+    let totalWeight = 0
+    let validCount = 0
+    
+    Object.entries(kpiCategories).forEach(([category, data]) => {
+      if (data.values.length > 0) {
+        const categoryAvg = data.values.reduce((sum, result) => sum + result.achievementRate, 0) / data.values.length
+        totalWeightedScore += categoryAvg * data.weight
+        totalWeight += data.weight
+        validCount += data.values.length
+      }
+    })
+    
     const weightedScore = totalWeight > 0 ? totalWeightedScore / totalWeight : 0
     const totalScore = validCount > 0 
       ? contributions.filter(c => c.isValid).reduce((sum, c) => sum + c.score, 0) / validCount 
       : 0
-
+    
     const achievementRate = weightedScore
     
     // Unique periods ve factories

@@ -39,6 +39,25 @@ interface UserActionNote {
 export default function UserActionsPage() {
   const [user, setUser] = useState<any>(null)
   const [isClient, setIsClient] = useState(false)
+
+  useEffect(() => {
+    setIsClient(true)
+    setUser(getCurrentUser())
+  }, [])
+
+  if (!isClient) return null
+  if (!user) return <div className="p-6">Giriş gerekli</div>
+
+  // Redirect based on user role
+  if (user.userRole === 'MODEL_FACTORY') {
+    // For Model Factory users, redirect to specialized user actions
+    if (typeof window !== 'undefined') {
+      window.location.href = '/user-actions/model-factory'
+      return null
+    }
+  }
+
+  // For other users, show the general user actions
   const [actions, setActions] = useState<UserAction[]>([])
   const [eventsByAction, setEventsByAction] = useState<Record<string, UserActionEvent[]>>({})
   const [notesByAction, setNotesByAction] = useState<Record<string, UserActionNote[]>>({})

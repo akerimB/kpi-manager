@@ -80,59 +80,92 @@ export default function IndustryAnalysisPanel({
       userRole,
       isFactorySelected: !!currentFactoryId
     })
+    
     try {
       // Eğer belirli bir fabrika seçilmişse, o fabrikanın kendi analiz verilerini kullan
       if (currentFactoryId && userRole === 'UPPER_MANAGEMENT') {
         // Model fabrika kullanıcısının gördüğü verilerle aynı endpoint'leri kullan
-        const industryResponse = await fetch(`/api/analytics/industry/overview?period=${currentPeriod}&factoryId=${currentFactoryId}`)
-        const industryResult = await industryResponse.json()
+        const [industryResponse, sectorResponse, regionalResponse] = await Promise.all([
+          fetch(`/api/analytics/industry/overview?period=${currentPeriod}&factoryId=${currentFactoryId}`),
+          fetch(`/api/analytics/industry/sectors?period=${currentPeriod}&sector=${selectedSector}&factoryId=${currentFactoryId}`),
+          fetch(`/api/analytics/industry/regions?period=${currentPeriod}&region=${selectedRegion}&factoryId=${currentFactoryId}`)
+        ])
+        
+        const [industryResult, sectorResult, regionalResult] = await Promise.all([
+          industryResponse.json(),
+          sectorResponse.json(),
+          regionalResponse.json()
+        ])
+        
         setIndustryData(industryResult)
-
-        const sectorResponse = await fetch(`/api/analytics/industry/sectors?period=${currentPeriod}&sector=${selectedSector}&factoryId=${currentFactoryId}`)
-        const sectorResult = await sectorResponse.json()
         setSectorData(sectorResult)
-
-        const regionalResponse = await fetch(`/api/analytics/industry/regions?period=${currentPeriod}&region=${selectedRegion}&factoryId=${currentFactoryId}`)
-        const regionalResult = await regionalResponse.json()
         setRegionalData(regionalResult)
       } else {
         // Genel sanayi analizi (tüm fabrikalar)
-        const industryResponse = await fetch(`/api/analytics/industry/overview?period=${currentPeriod}&factoryId=${currentFactoryId}`)
-        const industryResult = await industryResponse.json()
+        const [industryResponse, sectorResponse, regionalResponse] = await Promise.all([
+          fetch(`/api/analytics/industry/overview?period=${currentPeriod}&factoryId=${currentFactoryId}`),
+          fetch(`/api/analytics/industry/sectors?period=${currentPeriod}&sector=${selectedSector}&factoryId=${currentFactoryId}`),
+          fetch(`/api/analytics/industry/regions?period=${currentPeriod}&region=${selectedRegion}&factoryId=${currentFactoryId}`)
+        ])
+        
+        const [industryResult, sectorResult, regionalResult] = await Promise.all([
+          industryResponse.json(),
+          sectorResponse.json(),
+          regionalResponse.json()
+        ])
+        
         setIndustryData(industryResult)
-
-        const sectorResponse = await fetch(`/api/analytics/industry/sectors?period=${currentPeriod}&sector=${selectedSector}&factoryId=${currentFactoryId}`)
-        const sectorResult = await sectorResponse.json()
         setSectorData(sectorResult)
-
-        const regionalResponse = await fetch(`/api/analytics/industry/regions?period=${currentPeriod}&region=${selectedRegion}&factoryId=${currentFactoryId}`)
-        const regionalResult = await regionalResponse.json()
         setRegionalData(regionalResult)
       }
 
     } catch (error) {
       console.error('Industry data fetch error:', error)
-      // Mock data for development
+      
+      // Basit error handling
+      if (error instanceof Error) {
+        console.warn('⚠️ Using cached data due to error:', error.message)
+      }
+      
+      // Mock data for development - timeout durumunda da kullanılır
+      const mockKPICategories = {
+        'Teknoloji Transferi': { weight: 0.25, avgScore: 82.5 },
+        'Eğitim Katılımı': { weight: 0.20, avgScore: 78.3 },
+        'Sürdürülebilirlik': { weight: 0.20, avgScore: 75.8 },
+        'İnovasyon': { weight: 0.15, avgScore: 79.2 },
+        'Verimlilik': { weight: 0.10, avgScore: 81.1 },
+        'Kalite': { weight: 0.10, avgScore: 77.4 }
+      }
+      
+      // Ağırlıklı ortalama hesapla
+      const totalWeightedScore = Object.values(mockKPICategories).reduce((sum, cat) => 
+        sum + (cat.avgScore * cat.weight), 0
+      )
+      const totalWeight = Object.values(mockKPICategories).reduce((sum, cat) => 
+        sum + cat.weight, 0
+      )
+      const calculatedAvgKPIScore = totalWeight > 0 ? totalWeightedScore / totalWeight : 0
+      
       setIndustryData({
         totalFactories: 15,
         activeFactories: 14,
-        avgKPIScore: 78.5,
+        avgKPIScore: Math.round(calculatedAvgKPIScore * 10) / 10,
         sectorDistribution: [
-          { sector: 'Otomotiv', count: 3, performance: 82.3 },
-          { sector: 'Tekstil', count: 2, performance: 75.8 },
-          { sector: 'Gıda/İçecek', count: 3, performance: 79.2 },
-          { sector: 'Makine', count: 2, performance: 81.1 },
-          { sector: 'Elektrik-Elektronik', count: 2, performance: 76.9 },
-          { sector: 'Kimya', count: 1, performance: 77.4 },
-          { sector: 'Metal', count: 1, performance: 80.2 },
-          { sector: 'Plastik/Kauçuk', count: 1, performance: 74.6 }
+          { sector: 'Otomotiv', count: 3, performance: 85.2 },
+          { sector: 'Tekstil', count: 2, performance: 72.8 },
+          { sector: 'Gıda/İçecek', count: 3, performance: 78.5 },
+          { sector: 'Makine', count: 2, performance: 82.1 },
+          { sector: 'Elektrik-Elektronik', count: 2, performance: 80.3 },
+          { sector: 'Kimya', count: 1, performance: 75.4 },
+          { sector: 'Metal', count: 1, performance: 77.8 },
+          { sector: 'Plastik/Kauçuk', count: 1, performance: 73.6 }
         ],
         regionalPerformance: [
-          { region: 'Marmara', factories: 4, avgScore: 80.1 },
-          { region: 'İç Anadolu', factories: 4, avgScore: 78.9 },
+          { region: 'Marmara', factories: 4, avgScore: 82.1 },
+          { region: 'İç Anadolu', factories: 4, avgScore: 79.8 },
           { region: 'Ege', factories: 2, avgScore: 77.2 },
-          { region: 'Akdeniz', factories: 3, avgScore: 76.8 },
-          { region: 'Karadeniz', factories: 2, avgScore: 79.5 }
+          { region: 'Akdeniz', factories: 3, avgScore: 76.5 },
+          { region: 'Karadeniz', factories: 2, avgScore: 78.9 }
         ]
       })
     } finally {

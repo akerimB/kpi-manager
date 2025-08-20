@@ -41,57 +41,142 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Tema bazlı performans hesaplama
+    // Gerçek matematiksel analiz - Tema bazlı performans hesaplama
     const themeComparison = themes.map(theme => {
-      // Tüm fabrikaların bu temadaki ortalama performansı
-      let allFactoriesTotal = 0
-      let allFactoriesCount = 0
+      // Tema bazlı KPI kategorileri ve ağırlıkları
+      const themeKPICategories = {
+        'Teknoloji Transferi': { weight: 0.30, values: [] },
+        'Eğitim Katılımı': { weight: 0.25, values: [] },
+        'Sürdürülebilirlik': { weight: 0.20, values: [] },
+        'İnovasyon': { weight: 0.15, values: [] },
+        'Verimlilik': { weight: 0.10, values: [] }
+      }
       
-      // Seçili cohort (tek fabrika ya da fabrika listesi) temadaki performans
-      let cohortTotal = 0
-      let cohortCount = 0
+      // Tüm fabrikaların bu temadaki ağırlıklı performansı
+      let allFactoriesWeightedTotal = 0
+      let allFactoriesTotalWeight = 0
+      
+      // Seçili cohort'un ağırlıklı performansı
+      let cohortWeightedTotal = 0
+      let cohortTotalWeight = 0
 
       allFactoriesData.forEach(factory => {
+        const factoryThemeKPIs: any[] = []
+        
         factory.kpiValues.forEach(kpiValue => {
           const kpiThemes = kpiValue.kpi.themes?.split(',') || []
           
           if (kpiThemes.includes(theme.code)) {
-            const target = kpiValue.kpi.targetValue || 100
-            const achievement = Math.min((kpiValue.value / target) * 100, 100)
+            const target = kpiValue.kpi.targetValue || 1
+            const achievement = Math.min(100, Math.max(0, (kpiValue.value / target) * 100))
             
-            allFactoriesTotal += achievement
-            allFactoriesCount++
-            
-            const inCohort = factoryId 
-              ? factory.id === factoryId 
-              : (selectedFactoryIds.length > 0 ? selectedFactoryIds.includes(factory.id) : true)
-            if (inCohort) {
-              cohortTotal += achievement
-              cohortCount++
-            }
+            factoryThemeKPIs.push({ ...kpiValue, achievement })
           }
         })
+        
+        // Fabrika bazında ağırlıklı tema skoru hesapla
+        if (factoryThemeKPIs.length > 0) {
+          // KPI'ları kategorilere dağıt
+          factoryThemeKPIs.forEach(kv => {
+            const description = kv.kpi.description?.toLowerCase() || ''
+            
+            if (description.includes('teknoloji') || description.includes('transfer')) {
+              themeKPICategories['Teknoloji Transferi'].values.push(kv)
+            } else if (description.includes('eğitim') || description.includes('katılım')) {
+              themeKPICategories['Eğitim Katılımı'].values.push(kv)
+            } else if (description.includes('sürdürülebilir') || description.includes('çevre')) {
+              themeKPICategories['Sürdürülebilirlik'].values.push(kv)
+            } else if (description.includes('inovasyon') || description.includes('araştırma')) {
+              themeKPICategories['İnovasyon'].values.push(kv)
+            } else {
+              themeKPICategories['Verimlilik'].values.push(kv)
+            }
+          })
+          
+          // Ağırlıklı fabrika skoru hesapla
+          let factoryWeightedScore = 0
+          let factoryTotalWeight = 0
+          
+          Object.entries(themeKPICategories).forEach(([category, data]) => {
+            if (data.values.length > 0) {
+              const categoryAvg = data.values.reduce((sum, kv) => sum + kv.achievement, 0) / data.values.length
+              factoryWeightedScore += categoryAvg * data.weight
+              factoryTotalWeight += data.weight
+            }
+          })
+          
+          const finalFactoryScore = factoryTotalWeight > 0 ? factoryWeightedScore / factoryTotalWeight : 0
+          
+          // Genel toplam ve cohort hesaplama
+          allFactoriesWeightedTotal += finalFactoryScore
+          allFactoriesTotalWeight += 1
+          
+          const inCohort = factoryId 
+            ? factory.id === factoryId 
+            : (selectedFactoryIds.length > 0 ? selectedFactoryIds.includes(factory.id) : true)
+          if (inCohort) {
+            cohortWeightedTotal += finalFactoryScore
+            cohortTotalWeight += 1
+          }
+        }
       })
 
-      const industryAverage = allFactoriesCount > 0 ? allFactoriesTotal / allFactoriesCount : 0
-      const cohortAverage = cohortCount > 0 ? cohortTotal / cohortCount : 0
+      const industryAverage = allFactoriesTotalWeight > 0 ? allFactoriesWeightedTotal / allFactoriesTotalWeight : 0
+      const cohortAverage = cohortTotalWeight > 0 ? cohortWeightedTotal / cohortTotalWeight : 0
       const factoryScore = cohortAverage
       
-      // Percentile hesaplama (bu fabrika kaç fabrikadan daha iyi)
+      // Gerçek matematiksel percentile hesaplama
       const factoryScores = allFactoriesData.map(factory => {
-        let total = 0
-        let count = 0
+        const factoryThemeKPIs: any[] = []
         
         factory.kpiValues.forEach(kpiValue => {
           const kpiThemes = kpiValue.kpi.themes?.split(',') || []
           if (kpiThemes.includes(theme.code)) {
-            const target = kpiValue.kpi.targetValue || 100
-            total += Math.min((kpiValue.value / target) * 100, 100)
-            count++
+            const target = kpiValue.kpi.targetValue || 1
+            const achievement = Math.min(100, Math.max(0, (kpiValue.value / target) * 100))
+            factoryThemeKPIs.push({ ...kpiValue, achievement })
           }
         })
         
-        return count > 0 ? total / count : 0
+        if (factoryThemeKPIs.length === 0) return 0
+        
+        // Aynı ağırlıklı hesaplama
+        const factoryThemeCategories = {
+          'Teknoloji Transferi': { weight: 0.30, values: [] },
+          'Eğitim Katılımı': { weight: 0.25, values: [] },
+          'Sürdürülebilirlik': { weight: 0.20, values: [] },
+          'İnovasyon': { weight: 0.15, values: [] },
+          'Verimlilik': { weight: 0.10, values: [] }
+        }
+        
+        factoryThemeKPIs.forEach(kv => {
+          const description = kv.kpi.description?.toLowerCase() || ''
+          
+          if (description.includes('teknoloji') || description.includes('transfer')) {
+            factoryThemeCategories['Teknoloji Transferi'].values.push(kv)
+          } else if (description.includes('eğitim') || description.includes('katılım')) {
+            factoryThemeCategories['Eğitim Katılımı'].values.push(kv)
+          } else if (description.includes('sürdürülebilir') || description.includes('çevre')) {
+            factoryThemeCategories['Sürdürülebilirlik'].values.push(kv)
+          } else if (description.includes('inovasyon') || description.includes('araştırma')) {
+            factoryThemeCategories['İnovasyon'].values.push(kv)
+          } else {
+            factoryThemeCategories['Verimlilik'].values.push(kv)
+          }
+        })
+        
+        let factoryWeightedScore = 0
+        let factoryTotalWeight = 0
+        
+        Object.entries(factoryThemeCategories).forEach(([category, data]) => {
+          if (data.values.length > 0) {
+            const categoryAvg = data.values.reduce((sum, kv) => sum + kv.achievement, 0) / data.values.length
+            factoryWeightedScore += categoryAvg * data.weight
+            factoryTotalWeight += data.weight
+          }
+        })
+        
+        return factoryTotalWeight > 0 ? factoryWeightedScore / factoryTotalWeight : 0
       }).sort((a, b) => a - b)
 
       const betterThanCount = factoryScores.filter(score => score < factoryScore).length
