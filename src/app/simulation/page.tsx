@@ -2,56 +2,78 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Zap, Play, Save, AlertTriangle, TrendingUp, BarChart3, Target } from "lucide-react"
+import { ArrowLeft, BarChart3, Settings, Sparkles, Brain, Target } from "lucide-react"
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { getCurrentUser, getUserApiParams } from '@/lib/user-context'
+import dynamic from 'next/dynamic'
+
+const AdvancedSimulationDashboard = dynamic(
+  () => import('@/components/simulation/AdvancedSimulationDashboard'),
+  { ssr: false, loading: () => <div className="animate-pulse bg-gray-200 h-64 rounded"></div> }
+)
+
+const SimulationCharts = dynamic(
+  () => import('@/components/simulation/SimulationCharts'), 
+  { ssr: false, loading: () => <div className="animate-pulse bg-gray-200 h-64 rounded"></div> }
+)
+
+const ScenarioBuilder = dynamic(
+  () => import('@/components/simulation/ScenarioBuilder'),
+  { ssr: false, loading: () => <div className="animate-pulse bg-gray-200 h-64 rounded"></div> }
+)
+
+const KPIFocusedDashboard = dynamic(
+  () => import('@/components/simulation/KPIFocusedDashboard'),
+  { ssr: false, loading: () => <div className="animate-pulse bg-gray-200 h-64 rounded"></div> }
+)
 
 interface Action {
   id: string
   code: string
   description: string
   strategicTarget: {
+    id: string
     code: string
+    description: string
     strategicGoal: {
+      id: string
       code: string
+      description: string
     }
   }
 }
 
-interface SimulationItem {
-  actionId: string
-  assumedCompletion: number
-  estimatedImpact: number
-  estimatedImpactCategory: 'LOW' | 'MEDIUM' | 'HIGH'
-}
 
-interface SimulationResults {
-  totalItems: number
-  avgCompletion: number
-  avgImpact: number
-  overallScore: number
-  riskScore: number
-  items: any[]
-}
-
-interface Simulation {
-  id: string
-  name: string
-  description: string
-  createdAt: string
-  simulationItems: any[]
-}
 
 export default function SimulationPage() {
   const [actions, setActions] = useState<Action[]>([])
-  const [simulations, setSimulations] = useState<Simulation[]>([])
-  const [selectedActions, setSelectedActions] = useState<SimulationItem[]>([])
-  const [simulationName, setSimulationName] = useState('')
-  const [simulationDescription, setSimulationDescription] = useState('')
-  const [results, setResults] = useState<SimulationResults | null>(null)
+  const [advancedResults, setAdvancedResults] = useState<any>(null)
+  const [kpiResults, setKpiResults] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
+  const [activeTab, setActiveTab] = useState<'kpi' | 'advanced' | 'scenarios' | 'charts' | 'ai'>('kpi')
+  const [useSimpleTest, setUseSimpleTest] = useState(false)
+  const [useMockKPI, setUseMockKPI] = useState(false)
+  const [scenarios, setScenarios] = useState<any[]>([
+    {
+      id: 'scenario_1',
+      name: 'Temel Senaryo',
+      description: 'Standart uygulama yaklaşımı',
+      probability: 60,
+      actions: [],
+      assumptions: []
+    },
+    {
+      id: 'scenario_2', 
+      name: 'Optimistik Senaryo',
+      description: 'En iyi durum senaryosu',
+      probability: 40,
+      actions: [],
+      assumptions: []
+    }
+  ])
+  const [aiRecommendations, setAiRecommendations] = useState<any[]>([])
 
   // Kullanıcı bağlamını al
   const [userContext, setUserContext] = useState<any>(null)
@@ -62,33 +84,16 @@ export default function SimulationPage() {
     setUserContext(getCurrentUser())
   }, [])
 
-  // Authentication ve rol kontrolü
   useEffect(() => {
-    if (isClient && !userContext) {
-      window.location.href = '/login'
-      return
-    }
-  }, [isClient, userContext])
-
-  useEffect(() => {
-    if (!userContext) return
-
     const fetchData = async () => {
       try {
-        const apiParams = getUserApiParams(userContext)
+        const userParams = getUserApiParams(userContext)
         
-        const [actionsRes, simulationsRes] = await Promise.all([
-          fetch(`/api/actions?${apiParams}`),
-          fetch(`/api/simulation?${apiParams}`)
-        ])
+        // Tüm eylemleri fetch et
+        const actionsRes = await fetch(`/api/actions?${userParams}&limit=1000`)
+        const actionsData = await actionsRes.json()
+        setActions(actionsData) // Tüm eylemler
 
-        const [actionsData, simulationsData] = await Promise.all([
-          actionsRes.json(),
-          simulationsRes.json()
-        ])
-
-        setActions(actionsData.slice(0, 20)) // İlk 20 eylem
-        setSimulations(simulationsData)
       } catch (error) {
         console.error('Error fetching data:', error)
       } finally {
@@ -96,77 +101,12 @@ export default function SimulationPage() {
       }
     }
 
-    fetchData()
-  }, [userContext])
-
-  // Loading durumları
-  if (!isClient) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
-    )
-  }
-
-  if (!userContext) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-blue-600 text-6xl mb-4">🔐</div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Giriş Gerekli</h2>
-          <p className="text-gray-600 mb-4">Bu sayfayı görüntülemek için giriş yapmanız gerekiyor.</p>
-          <a href="/login" className="text-blue-600 hover:text-blue-800">Giriş Yap</a>
-        </div>
-      </div>
-    )
-  }
-
-  // Rol kontrolü - sadece simülasyon yetkisi olanlar erişebilir
-  if (!userContext.permissions?.canCreateSimulations) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-600 text-6xl mb-4">🚫</div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Erişim Reddedildi</h2>
-          <p className="text-gray-600 mb-4">Etki simülasyonu oluşturma yetkiniz bulunmamaktadır.</p>
-          <Link href="/" className="text-blue-600 hover:text-blue-800">
-            Dashboard'a Dön
-          </Link>
-        </div>
-      </div>
-    )
-  }
-
-  const addActionToSimulation = (action: Action) => {
-    if (selectedActions.find(item => item.actionId === action.id)) return
-
-    const newItem: SimulationItem = {
-      actionId: action.id,
-      assumedCompletion: 50,
-      estimatedImpact: 0,
-      estimatedImpactCategory: 'MEDIUM'
+    if (isClient && userContext) {
+      fetchData()
     }
+  }, [isClient, userContext])
 
-    setSelectedActions([...selectedActions, newItem])
-  }
-
-  const updateSimulationItem = (actionId: string, field: keyof SimulationItem, value: any) => {
-    setSelectedActions(prev => 
-      prev.map(item => 
-        item.actionId === actionId 
-          ? { ...item, [field]: value }
-          : item
-      )
-    )
-  }
-
-  const removeFromSimulation = (actionId: string) => {
-    setSelectedActions(prev => prev.filter(item => item.actionId !== actionId))
-  }
-
-  const runSimulation = async () => {
-    if (!simulationName || selectedActions.length === 0) return
-
+  const runAdvancedSimulation = async (config: any) => {
     setRunning(true)
     try {
       const response = await fetch('/api/simulation', {
@@ -174,48 +114,113 @@ export default function SimulationPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          name: simulationName,
-          description: simulationDescription,
-          scenarioItems: selectedActions
-        })
+        body: JSON.stringify(config)
       })
 
       if (response.ok) {
         const data = await response.json()
-        setResults(data.results)
-        
-        // Simülasyon listesini güncelle
-        const simulationsRes = await fetch('/api/simulation')
-        const simulationsData = await simulationsRes.json()
-        setSimulations(simulationsData)
+        if (data.type === 'advanced') {
+          setAdvancedResults(data.results)
+          // Generate AI recommendations
+          await generateAIRecommendations(data.results)
+        }
       }
     } catch (error) {
-      console.error('Error running simulation:', error)
+      console.error('Error running advanced simulation:', error)
     } finally {
       setRunning(false)
     }
   }
 
-  const getImpactColor = (category: string) => {
-    switch (category) {
-      case 'HIGH': return 'text-red-600 bg-red-100'
-      case 'MEDIUM': return 'text-yellow-600 bg-yellow-100'
-      case 'LOW': return 'text-green-600 bg-green-100'
-      default: return 'text-gray-600 bg-gray-100'
+  const generateAIRecommendations = async (simulationResults: any) => {
+    try {
+      const response = await fetch('/api/simulation/ai-recommendations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          scenarios,
+          simulationResults,
+          actions
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setAiRecommendations(data.recommendations || [])
+      }
+    } catch (error) {
+      console.error('Error generating AI recommendations:', error)
     }
   }
 
-  const getImpactLabel = (category: string) => {
-    switch (category) {
-      case 'HIGH': return 'Yüksek'
-      case 'MEDIUM': return 'Orta'
-      case 'LOW': return 'Düşük'
-      default: return 'Bilinmiyor'
+
+
+  const runKPISimulation = async (scenarios: any[]) => {
+    setRunning(true)
+    
+    try {
+      console.log('🚀 Starting KPI simulation with scenarios:', scenarios)
+      
+      // Request body'yi güvenli şekilde hazırla
+      const requestBody = { scenarios: scenarios || [] }
+      
+      console.log('📤 Sending request body:', requestBody)
+      
+      // Endpoint seçimi
+      const endpoint = useSimpleTest ? '/api/simulation/simple-test' : 
+                      useMockKPI ? '/api/simulation/mock-kpi' : 
+                      '/api/simulation/kpi-test'
+      console.log('🎯 Using endpoint:', endpoint)
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      })
+
+      console.log('📥 Response status:', response.status, response.statusText)
+
+      if (response.ok) {
+        try {
+          const data = await response.json()
+          console.log('✅ KPI Simulation Response:', data)
+          
+          if (data.success && data.type === 'kpi-focused') {
+            setKpiResults(data.results)
+            console.log('✅ KPI Results set successfully')
+          } else {
+            console.warn('⚠️ Unexpected response format:', data)
+          }
+        } catch (jsonError) {
+          console.error('❌ JSON parse error in response:', jsonError)
+          // Try to get response as text for debugging
+          const responseText = await response.text()
+          console.log('Raw response text:', responseText)
+        }
+      } else {
+        const responseText = await response.text()
+        console.error('❌ API Error Response:', response.status, responseText)
+      }
+    } catch (networkError) {
+      console.error('❌ Network/Request Error:', networkError)
+    } finally {
+      setRunning(false)
     }
   }
 
-  if (loading) {
+  const tabs = [
+    { id: 'kpi', name: 'KPI Odaklı Analiz', icon: Target },
+    { id: 'advanced', name: 'Monte Carlo Analizi', icon: Sparkles },
+    { id: 'scenarios', name: 'Senaryo Yönetimi', icon: Settings },
+    { id: 'charts', name: 'Görselleştirme', icon: BarChart3 },
+    { id: 'ai', name: 'AI Önerileri', icon: Brain }
+  ]
+
+  if (!isClient || loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -228,283 +233,167 @@ export default function SimulationPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Sol Panel - Eylem Seçimi */}
-          <div className="lg:col-span-1">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Target className="h-5 w-5" />
-                  <span>Mevcut Eylemler</span>
-                </CardTitle>
-                <CardDescription>
-                  Simülasyona eklemek için eylem seçin (İlk 20 eylem)
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {actions.map((action) => (
-                    <div 
-                      key={action.id} 
-                      className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"
-                      onClick={() => addActionToSimulation(action)}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <p className="font-medium text-sm">{action.code}</p>
-                          <p className="text-xs text-gray-600 mt-1 line-clamp-2">
-                            {action.description}
-                          </p>
-                          <div className="flex items-center space-x-2 mt-2 text-xs text-gray-500">
-                            <span>SH: {action.strategicTarget.code}</span>
-                            <span>SA: {action.strategicTarget.strategicGoal.code}</span>
-                          </div>
+      {/* Header */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">KPI Odaklı Etki Simülasyonu</h1>
+            <p className="text-gray-600 mt-1">
+              Eylemlerinizin KPI'lara etkisini analiz edin, fabrika performanslarını karşılaştırın ve olasılıksal sonuçları görün
+            </p>
+          </div>
+          <Link href="/" className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
+            <ArrowLeft className="h-4 w-4" />
+            Ana Sayfa
+          </Link>
+        </div>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200 mb-6">
+        <nav className="flex space-x-8">
+          {tabs.map((tab) => {
+            const Icon = tab.icon
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
+                  activeTab === tab.id
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {tab.name}
+              </button>
+            )
+          })}
+        </nav>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'kpi' && (
+        <KPIFocusedDashboard 
+          scenarios={scenarios}
+          onRunKPISimulation={runKPISimulation}
+          results={kpiResults}
+          loading={running}
+          useSimpleTest={useSimpleTest}
+          onToggleSimpleTest={setUseSimpleTest}
+          useMockKPI={useMockKPI}
+          onToggleMockKPI={setUseMockKPI}
+        />
+      )}
+
+      {activeTab === 'advanced' && (
+        <AdvancedSimulationDashboard 
+          scenarios={scenarios}
+          onRunAdvancedSimulation={runAdvancedSimulation}
+          results={advancedResults}
+          loading={running}
+        />
+      )}
+
+      {activeTab === 'scenarios' && (
+        <ScenarioBuilder 
+          actions={actions}
+          scenarios={scenarios}
+          onScenariosChange={setScenarios}
+        />
+      )}
+
+      {activeTab === 'charts' && (
+        <SimulationCharts results={advancedResults} />
+      )}
+
+      {activeTab === 'ai' && (
+        <div className="space-y-6">
+          {/* AI Recommendations */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="h-5 w-5" />
+                AI Destekli Öneriler
+              </CardTitle>
+              <CardDescription>
+                Simülasyon sonuçlarına dayalı yapay zeka önerileri
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {aiRecommendations.length > 0 ? (
+                <div className="space-y-4">
+                  {aiRecommendations.map((rec: any) => (
+                    <div key={rec.id} className="p-4 border rounded-lg">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <h4 className="font-medium">{rec.title}</h4>
+                          <p className="text-sm text-gray-600 mt-1">{rec.description}</p>
                         </div>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          disabled={selectedActions.some(item => item.actionId === action.id)}
-                        >
-                          {selectedActions.some(item => item.actionId === action.id) ? 'Eklendi' : 'Ekle'}
-                        </Button>
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          rec.priority === 'high' ? 'bg-red-100 text-red-800' :
+                          rec.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-green-100 text-green-800'
+                        }`}>
+                          {rec.priority === 'high' ? 'Yüksek' : 
+                           rec.priority === 'medium' ? 'Orta' : 'Düşük'}
+                        </span>
                       </div>
+                      
+                      <div className="grid grid-cols-3 gap-4 text-sm mb-3">
+                        <div>
+                          <span className="text-gray-600">Beklenen Etki:</span>
+                          <span className="ml-2 font-medium">{rec.expectedImpact}%</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Uygulama Efortu:</span>
+                          <span className="ml-2 font-medium">{rec.implementationEffort}%</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Güven:</span>
+                          <span className="ml-2 font-medium">{rec.confidence}%</span>
+                        </div>
+                      </div>
+
+                      <div className="text-sm">
+                        <p className="font-medium">Gerekçe:</p>
+                        <p className="text-gray-600">{rec.rationale}</p>
+                      </div>
+
+                      {rec.benefits && rec.benefits.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-sm font-medium text-green-700">Faydalar:</p>
+                          <ul className="text-sm text-green-600 list-disc list-inside">
+                            {rec.benefits.map((benefit: string, index: number) => (
+                              <li key={index}>{benefit}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {rec.risks && rec.risks.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-sm font-medium text-red-700">Riskler:</p>
+                          <ul className="text-sm text-red-600 list-disc list-inside">
+                            {rec.risks.map((risk: string, index: number) => (
+                              <li key={index}>{risk}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Orta Panel - Simülasyon Kurulumu */}
-          <div className="lg:col-span-1">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Play className="h-5 w-5" />
-                  <span>Simülasyon Kurulumu</span>
-                </CardTitle>
-                <CardDescription>
-                  Senaryo parametrelerini ayarlayın
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Simülasyon Adı
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full p-2 border border-gray-300 rounded-md"
-                      placeholder="Örn: Q1 2024 İyileştirme Senaryosu"
-                      value={simulationName}
-                      onChange={(e) => setSimulationName(e.target.value)}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Açıklama
-                    </label>
-                    <textarea
-                      className="w-full p-2 border border-gray-300 rounded-md"
-                      rows={3}
-                      placeholder="Simülasyon hakkında açıklama..."
-                      value={simulationDescription}
-                      onChange={(e) => setSimulationDescription(e.target.value)}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Seçili Eylemler ({selectedActions.length})
-                    </label>
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {selectedActions.map((item) => {
-                        const action = actions.find(a => a.id === item.actionId)
-                        if (!action) return null
-
-                        return (
-                          <div key={item.actionId} className="p-3 border rounded-lg bg-blue-50">
-                            <div className="flex justify-between items-start mb-2">
-                              <p className="font-medium text-sm">{action.code}</p>
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                onClick={() => removeFromSimulation(item.actionId)}
-                              >
-                                Çıkar
-                              </Button>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <label className="block text-xs text-gray-600">Tamamlanma %</label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  className="w-full p-1 text-sm border border-gray-300 rounded"
-                                  value={item.assumedCompletion}
-                                  onChange={(e) => updateSimulationItem(
-                                    item.actionId, 
-                                    'assumedCompletion', 
-                                    parseInt(e.target.value) || 0
-                                  )}
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-xs text-gray-600">Etki Skoru</label>
-                                <input
-                                  type="number"
-                                  step="0.1"
-                                  className="w-full p-1 text-sm border border-gray-300 rounded"
-                                  value={item.estimatedImpact}
-                                  onChange={(e) => updateSimulationItem(
-                                    item.actionId, 
-                                    'estimatedImpact', 
-                                    parseFloat(e.target.value) || 0
-                                  )}
-                                />
-                              </div>
-                            </div>
-
-                            <div className="mt-2">
-                              <label className="block text-xs text-gray-600">Etki Kategorisi</label>
-                              <select
-                                className="w-full p-1 text-sm border border-gray-300 rounded"
-                                value={item.estimatedImpactCategory}
-                                onChange={(e) => updateSimulationItem(
-                                  item.actionId, 
-                                  'estimatedImpactCategory', 
-                                  e.target.value as 'LOW' | 'MEDIUM' | 'HIGH'
-                                )}
-                              >
-                                <option value="LOW">Düşük</option>
-                                <option value="MEDIUM">Orta</option>
-                                <option value="HIGH">Yüksek</option>
-                              </select>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-
-                  <Button 
-                    onClick={runSimulation}
-                    disabled={!simulationName || selectedActions.length === 0 || running}
-                    className="w-full"
-                  >
-                    {running ? 'Simülasyon Çalıştırılıyor...' : 'Simülasyonu Çalıştır'}
-                  </Button>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Brain className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>AI önerileri için gelişmiş simülasyon çalıştırın</p>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Sağ Panel - Sonuçlar */}
-          <div className="lg:col-span-1">
-            {results && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <BarChart3 className="h-5 w-5" />
-                    <span>Simülasyon Sonuçları</span>
-                  </CardTitle>
-                  <CardDescription>
-                    Senaryo analizi çıktıları
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="text-center p-3 bg-blue-50 rounded-lg">
-                        <div className="text-2xl font-bold text-blue-600">{results.totalItems}</div>
-                        <div className="text-xs text-gray-600">Toplam Eylem</div>
-                      </div>
-                      <div className="text-center p-3 bg-green-50 rounded-lg">
-                        <div className="text-2xl font-bold text-green-600">{results.avgCompletion}%</div>
-                        <div className="text-xs text-gray-600">Ort. Tamamlanma</div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="text-center p-3 bg-yellow-50 rounded-lg">
-                        <div className="text-2xl font-bold text-yellow-600">{results.overallScore}</div>
-                        <div className="text-xs text-gray-600">Genel Skor</div>
-                      </div>
-                      <div className="text-center p-3 bg-red-50 rounded-lg">
-                        <div className="text-2xl font-bold text-red-600">{results.riskScore}</div>
-                        <div className="text-xs text-gray-600">Risk Skoru</div>
-                      </div>
-                    </div>
-
-                    <div className="mt-4">
-                      <h4 className="font-medium mb-2">Ortalama Etki</h4>
-                      <div className="flex items-center space-x-2">
-                        <div className="flex-1 bg-gray-200 rounded-full h-3">
-                          <div 
-                            className={`h-3 rounded-full ${
-                              Math.abs(results.avgImpact) > 5 ? 'bg-red-500' :
-                              Math.abs(results.avgImpact) > 2 ? 'bg-yellow-500' : 'bg-green-500'
-                            }`}
-                            style={{ width: `${Math.min(100, Math.abs(results.avgImpact) * 10)}%` }}
-                          ></div>
-                        </div>
-                        <span className="text-sm font-medium">{results.avgImpact}</span>
-                      </div>
-                    </div>
-
-                    {results.riskScore > 70 && (
-                      <div className="flex items-start space-x-2 p-3 bg-red-50 rounded-lg">
-                        <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
-                        <div className="text-sm text-red-700">
-                          <p className="font-medium">Yüksek Risk Uyarısı</p>
-                          <p>Bu senaryo yüksek risk taşıyor. Dikkatli değerlendirme önerilir.</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Geçmiş Simülasyonlar */}
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Save className="h-5 w-5" />
-                  <span>Geçmiş Simülasyonlar</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {simulations.length === 0 ? (
-                    <p className="text-sm text-gray-500 text-center py-4">
-                      Henüz simülasyon yok
-                    </p>
-                  ) : (
-                    simulations.map((sim) => (
-                      <div key={sim.id} className="p-3 border rounded-lg hover:bg-gray-50">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-medium text-sm">{sim.name}</p>
-                            <p className="text-xs text-gray-600">{sim.description}</p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {new Date(sim.createdAt).toLocaleDateString('tr-TR')} - 
-                              {sim.simulationItems.length} eylem
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
+      )}
     </div>
   )
-} 
+}

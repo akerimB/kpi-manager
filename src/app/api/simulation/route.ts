@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { simulationEngine, Scenario, MonteCarloSettings, SensitivityAnalysis, TimeRange } from '@/lib/simulation-engine'
 
 type SimulationWithRelations = {
   id: string
@@ -151,10 +152,67 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, description, scenarioItems } = body
+    const { 
+      name, 
+      description, 
+      scenarioItems, 
+      analysisType = 'basic',
+      scenarios,
+      monteCarlo,
+      sensitivity,
+      timeHorizon
+    } = body
 
-    if (!name || !scenarioItems || !Array.isArray(scenarioItems)) {
-      return NextResponse.json({ error: 'İsim ve senaryo öğeleri gerekli' }, { status: 400 })
+    if (!name) {
+      return NextResponse.json({ error: 'İsim gerekli' }, { status: 400 })
+    }
+
+    // Advanced simulation analysis
+    if (analysisType === 'advanced' && scenarios) {
+      console.log('🚀 Running Advanced Simulation Analysis...')
+      
+      const advancedResults = await simulationEngine.runAdvancedSimulation(
+        scenarios as Scenario[],
+        monteCarlo as MonteCarloSettings || {
+          iterations: 1000,
+          confidenceLevel: 0.95,
+          variabilityFactor: 20
+        },
+        sensitivity as SensitivityAnalysis || {
+          parameters: [
+            {
+              name: 'completion_rate',
+              baseline: 100,
+              variations: [-20, -10, 10, 20],
+              impact: 'linear'
+            },
+            {
+              name: 'success_probability',
+              baseline: 100,
+              variations: [-15, -7.5, 7.5, 15],
+              impact: 'exponential'
+            }
+          ],
+          ranges: [{ min: -50, max: 50, step: 10 }]
+        },
+        timeHorizon as TimeRange || {
+          start: new Date(),
+          end: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+          intervals: 'monthly'
+        }
+      )
+
+      return NextResponse.json({
+        success: true,
+        type: 'advanced',
+        results: advancedResults,
+        generatedAt: new Date().toISOString()
+      })
+    }
+
+    // Basic simulation (existing functionality)
+    if (!scenarioItems || !Array.isArray(scenarioItems)) {
+      return NextResponse.json({ error: 'Senaryo öğeleri gerekli' }, { status: 400 })
     }
 
     // Simülasyon oluştur
@@ -221,6 +279,8 @@ export async function POST(request: NextRequest) {
     const results = await calculateSimulationResults(simulation.id)
 
     return NextResponse.json({
+      success: true,
+      type: 'basic',
       simulation: formattedSimulation,
       results
     })
